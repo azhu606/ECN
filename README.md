@@ -6,4 +6,6 @@ in case u need a refresher:
 4. then do npm i
 5. then npm run dev
 
-and it should be working
+REMINDER: this is only for frontend
+
+it should be working
