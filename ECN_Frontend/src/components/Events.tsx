@@ -162,6 +162,45 @@ export function Events() {
   const [filterRSVPed, setFilterRSVPed] = useState(false);
   const [filterMyClubs, setFilterMyClubs] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [localRSVPed, setLocalRSVPed] = useState<{ [id: string]: boolean }>({});
+
+  // RSVP and Share handlers
+  const handleRSVP = async (eventId: string) => {
+    try {
+      const res = await fetch('http://localhost:5001/rsvps', { // currently using localhost for test purposes 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, userId: 'jskorn7' }) // userId test 
+      });
+
+      if (res.ok) {
+        setLocalRSVPed(prev => ({ ...prev, [eventId]: true }));
+        alert("RSVP successful!");
+      } else {
+        const data = await res.json();
+        alert(data.message || "RSVP failed");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong.");
+    }
+  };
+
+  const handleShare = (event: Event) => {
+    const shareText = `${event.name} - ${event.description}`;
+    if (navigator.share) {
+      navigator.share({
+        title: event.name,
+        text: shareText,
+        url: window.location.href
+      });
+    } else {
+      navigator.clipboard.writeText(shareText);
+      alert('Link copied to clipboard!');
+    }
+  };
+
+
 
   const categories = [
     "All Categories", 
@@ -429,12 +468,19 @@ export function Events() {
 
                       {/* Actions */}
                       <div className={`${viewMode === "grid" ? "w-full" : "w-32"} space-y-2`}>
-                        <Button 
-                          className={`w-full ${event.isRSVPed ? 'bg-green-600 hover:bg-green-700' : 'bg-[#012169] hover:bg-[#001a5c]'}`}
+                          <Button
+                          onClick={() => handleRSVP(event.id)}
+                          disabled={event.isRSVPed || localRSVPed[event.id]}
+                          className={`w-full ${event.isRSVPed || localRSVPed[event.id] ? 'bg-green-600 hover:bg-green-700' : 'bg-[#012169] hover:bg-[#001a5c]'}`}
                         >
-                          {event.isRSVPed ? 'Registered ✓' : 'RSVP'}
+                          {(event.isRSVPed || localRSVPed[event.id]) ? 'Registered ✓' : 'RSVP'}
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleShare(event)}
+                        >
                           <Share2 className="w-3 h-3 mr-2" />
                           Share
                         </Button>
