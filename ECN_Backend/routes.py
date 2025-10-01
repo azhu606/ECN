@@ -1,6 +1,6 @@
 # routes.py
 from flask import Blueprint, request, jsonify
-from services import list_clubs, create_club, list_events, create_event
+from services import list_clubs, create_club, list_events, create_event, search_clubs_smart
 
 api_bp = Blueprint("api", __name__)
 
@@ -8,6 +8,9 @@ api_bp = Blueprint("api", __name__)
 def get_clubs():
     q = request.args.get("q", "")
     tags = request.args.getlist("tags")
+    use_smart = request.args.get("smart", "false").lower() == "true"
+    if use_smart:
+        return jsonify(search_clubs_smart(q=q, tags=tags))
     return jsonify(list_clubs(q=q, tags=tags))
 
 @api_bp.post("/clubs")
