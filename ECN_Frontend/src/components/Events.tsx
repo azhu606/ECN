@@ -54,7 +54,7 @@ const mockEvents: Event[] = [
       name: "Goizueta Business Association",
       verified: true
     },
-    date: "2024-10-18",
+    date: "2025-10-18",
     time: "6:00 PM",
     endTime: "8:00 PM",
     location: "Goizueta Business School - Room 210",
@@ -72,7 +72,7 @@ const mockEvents: Event[] = [
       name: "Pre-Medical Society",
       verified: true
     },
-    date: "2024-10-20",
+    date: "2025-10-20",
     time: "7:00 PM",
     endTime: "9:00 PM",
     location: "Chemistry Building Room 240",
@@ -89,7 +89,7 @@ const mockEvents: Event[] = [
       name: "Black Student Alliance",
       verified: true
     },
-    date: "2024-10-26",
+    date: "2025-10-26",
     time: "7:30 PM",
     endTime: "10:00 PM",
     location: "Glenn Memorial Auditorium",
@@ -107,7 +107,7 @@ const mockEvents: Event[] = [
       name: "Sustainability Action Network",
       verified: true
     },
-    date: "2024-10-23",
+    date: "2025-10-23",
     time: "11:00 AM",
     endTime: "3:00 PM",
     location: "Quad (Rain location: DUC)",
@@ -124,7 +124,7 @@ const mockEvents: Event[] = [
       name: "Computer Science Society",
       verified: true
     },
-    date: "2024-10-21",
+    date: "2025-10-21",
     time: "5:30 PM",
     endTime: "7:00 PM",
     location: "Math & Science Center E208",
@@ -142,7 +142,7 @@ const mockEvents: Event[] = [
       name: "Outdoor Adventure Club",
       verified: true
     },
-    date: "2024-10-19",
+    date: "2025-10-19",
     time: "7:00 AM",
     endTime: "8:00 PM",
     location: "Meet at Campus Life Pavilion",
@@ -151,6 +151,110 @@ const mockEvents: Event[] = [
     registered: 23,
     isRSVPed: true,
     tags: ["Hiking", "Nature", "Day Trip", "Adventure"]
+  },
+  {
+    id: "7",
+    name: "Study Abroad Information Session",
+    description: "Learn about study abroad opportunities for next year. Representatives from multiple programs will be present.",
+    club: {
+      name: "International Studies Society",
+      verified: true
+    },
+    date: "2025-10-08",
+    time: "4:00 PM",
+    endTime: "6:00 PM",
+    location: "International House - Main Hall",
+    category: "Academic",
+    registered: 45,
+    isRSVPed: false,
+    tags: ["Study Abroad", "International", "Education", "Travel"]
+  },
+  {
+    id: "8", 
+    name: "Career Fair Prep Workshop",
+    description: "Get ready for the fall career fair with resume reviews and interview practice.",
+    club: {
+      name: "Pre-Medical Society",
+      verified: true
+    },
+    date: "2025-10-10",
+    time: "5:00 PM", 
+    endTime: "7:00 PM",
+    location: "Student Center Room 205",
+    category: "Professional",
+    capacity: 60,
+    registered: 42,
+    isRSVPed: true,
+    tags: ["Career", "Resume", "Interview", "Professional"]
+  },
+  {
+    id: "9",
+    name: "Fall Festival Planning Meeting",
+    description: "Help plan this year's fall festival! All students welcome to contribute ideas and volunteer.",
+    club: {
+      name: "Student Government Association",
+      verified: true
+    },
+    date: "2025-10-07",
+    time: "6:30 PM",
+    endTime: "8:00 PM", 
+    location: "DUC Conference Room A",
+    category: "Social",
+    registered: 18,
+    isRSVPed: false,
+    tags: ["Planning", "Festival", "Volunteer", "Community"]
+  },
+  {
+    id: "10",
+    name: "Python Programming Workshop",
+    description: "Beginner-friendly introduction to Python programming. Laptops will be provided.",
+    club: {
+      name: "Computer Science Society", 
+      verified: true
+    },
+    date: "2025-10-12",
+    time: "2:00 PM",
+    endTime: "4:00 PM",
+    location: "Math & Science Center Computer Lab",
+    category: "Technology",
+    capacity: 30,
+    registered: 28,
+    isRSVPed: false,
+    tags: ["Programming", "Python", "Workshop", "Coding"]
+  },
+  {
+    id: "11",
+    name: "Coffee & Study Session",
+    description: "Join us for a relaxed study session with free coffee and snacks. All majors welcome!",
+    club: {
+      name: "Pre-Medical Society",
+      verified: true
+    },
+    date: "2025-10-06",
+    time: "2:00 PM",
+    endTime: "5:00 PM",
+    location: "Library Study Lounge",
+    category: "Academic",
+    registered: 15,
+    isRSVPed: true,
+    tags: ["Study", "Coffee", "Social", "Academic"]
+  },
+  {
+    id: "12",
+    name: "Photography Club Meeting",
+    description: "Weekly meeting to discuss upcoming photo walks and portfolio reviews.",
+    club: {
+      name: "Photography Club",
+      verified: false
+    },
+    date: "2025-10-06",
+    time: "7:00 PM", 
+    endTime: "8:30 PM",
+    location: "Art Building Room 105",
+    category: "Cultural",
+    registered: 12,
+    isRSVPed: false,
+    tags: ["Photography", "Art", "Creative", "Portfolio"]
   }
 ];
 
@@ -277,11 +381,14 @@ export function Events() {
       const matchesDate = eventDate === dateString;
       const matchesMyClubs = !filterMyClubs || myClubs.includes(event.club.name);
       const matchesCategory = selectedCategory === "All Categories" || event.category === selectedCategory;
+      const matchesRSVP = !filterRSVPed || event.isRSVPed;
       const matchesSearch = !searchTerm || 
         event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.club.name.toLowerCase().includes(searchTerm.toLowerCase());
+        event.club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      return matchesDate && matchesMyClubs && matchesCategory && matchesSearch;
+      return matchesDate && matchesMyClubs && matchesCategory && matchesRSVP && matchesSearch;
     });
   };
 
@@ -501,11 +608,102 @@ export function Events() {
           </TabsContent>
 
           <TabsContent value="today" className="space-y-6">
-            <div className="text-center py-12">
-              <CalendarIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No events today</h3>
-              <p className="text-gray-600">Check the upcoming tab for events this week</p>
-            </div>
+            {(() => {
+              const today = new Date().toISOString().split('T')[0];
+              const todayEvents = filteredEvents.filter(event => event.date === today);
+              
+              if (todayEvents.length === 0) {
+                return (
+                  <div className="text-center py-12">
+                    <CalendarIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No events today</h3>
+                    <p className="text-gray-600">Check the upcoming tab for events this week</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    {todayEvents.length} event{todayEvents.length !== 1 ? 's' : ''} today
+                  </p>
+                  <div className="space-y-4">
+                    {todayEvents.map((event) => (
+                      <Card key={event.id} className="hover:shadow-lg transition-shadow duration-200">
+                        <CardContent className="p-6">
+                          <div className="flex gap-6">
+                            <div className="flex-1 space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Badge className="bg-[#012169]">{event.category}</Badge>
+                                    {event.isRSVPed && (
+                                      <Badge variant="outline" className="text-green-600 border-green-200">
+                                        <Heart className="w-3 h-3 mr-1 fill-current" />
+                                        RSVP'd
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <h3 className="text-xl font-semibold text-gray-900">{event.name}</h3>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-sm font-medium text-gray-900">{event.club.name}</span>
+                                    {event.club.verified && (
+                                      <CheckCircle className="w-4 h-4 text-green-500" />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-gray-600 text-sm leading-relaxed">{event.description}</p>
+                              <div className="grid grid-cols-2 gap-3 text-sm text-gray-500">
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="w-4 h-4" />
+                                  <span>{event.time} - {event.endTime}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <MapPin className="w-4 h-4" />
+                                  <span className="truncate">{event.location}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <Users className="w-4 h-4" />
+                                  <span className={getCapacityColor(event.registered, event.capacity)}>
+                                    {event.registered}{event.capacity ? `/${event.capacity}` : ''}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {event.tags.map((tag, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="w-32 space-y-2">
+                              <Button
+                                onClick={() => handleRSVP(event.id)}
+                                disabled={event.isRSVPed || localRSVPed[event.id]}
+                                className={`w-full ${event.isRSVPed || localRSVPed[event.id] ? 'bg-green-600 hover:bg-green-700' : 'bg-[#012169] hover:bg-[#001a5c]'}`}
+                              >
+                                {(event.isRSVPed || localRSVPed[event.id]) ? 'Registered ✓' : 'RSVP'}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => handleShare(event)}
+                              >
+                                <Share2 className="w-3 h-3 mr-2" />
+                                Share
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="calendar" className="space-y-6">
@@ -548,20 +746,25 @@ export function Events() {
                       <div
                         key={index}
                         className={`
-                          bg-white min-h-[120px] p-2 border-r border-b border-gray-100
-                          ${!isCurrentMonthDay ? 'bg-gray-50 text-gray-400' : ''}
-                          ${isTodayDate ? 'bg-blue-50 border-blue-200' : ''}
+                          min-h-[120px] p-2 border-r border-b border-gray-100
+                          ${!isCurrentMonthDay ? 'bg-gray-50 text-gray-400' : 'bg-white'}
+                          ${isTodayDate ? 'bg-blue-50 border-2 border-blue-400 shadow-sm' : ''}
                         `}
                       >
                         {/* Date number */}
                         <div className={`
-                          text-sm font-medium mb-1
-                          ${isTodayDate ? 'text-blue-600' : ''}
+                          text-sm font-medium mb-1 flex items-center
+                          ${isTodayDate ? 'text-blue-700 font-bold' : ''}
                           ${!isCurrentMonthDay ? 'text-gray-400' : 'text-gray-900'}
                         `}>
-                          {date.getDate()}
                           {isTodayDate && (
-                            <span className="ml-1 inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                            <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                              {date.getDate()}
+                            </div>
+                          )}
+                          {!isTodayDate && date.getDate()}
+                          {isTodayDate && (
+                            <span className="text-blue-600 text-xs font-medium ml-1">Today</span>
                           )}
                         </div>
                         
@@ -608,29 +811,94 @@ export function Events() {
                   })}
                 </div>
                 
-                {/* Legend */}
-                <div className="mt-6 space-y-2">
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 bg-[#012169] rounded"></div>
-                      <span>My Clubs Events</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 bg-gray-100 border rounded"></div>
-                      <span>Other Events</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Heart className="w-4 h-4 text-green-400 fill-current" />
-                      <span>RSVP'd Events (My Events)</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 bg-blue-50 border-2 border-blue-200 rounded"></div>
-                      <span>Today</span>
+                {/* Interactive Legend/Filters */}
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Quick Filters:</h4>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        variant={filterMyClubs ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterMyClubs(!filterMyClubs)}
+                        className={`text-sm ${filterMyClubs ? 'bg-[#012169] hover:bg-[#001a5c] text-white' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="w-3 h-3 bg-[#012169] rounded mr-2"></div>
+                        My Clubs Events
+                      </Button>
+                      
+                      <Button
+                        variant={filterRSVPed ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterRSVPed(!filterRSVPed)}
+                        className={`text-sm ${filterRSVPed ? 'bg-green-600 hover:bg-green-700 text-white' : 'hover:bg-gray-50'}`}
+                      >
+                        <Heart className={`w-3 h-3 mr-2 ${filterRSVPed ? 'fill-current text-white' : 'text-green-400 fill-current'}`} />
+                        RSVP'd Events
+                      </Button>
+                      
+                      <Button
+                        variant={selectedDate && selectedDate.toDateString() === new Date().toDateString() ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          if (selectedDate && selectedDate.toDateString() === today.toDateString()) {
+                            setSelectedDate(undefined);
+                          } else {
+                            setSelectedDate(today);
+                          }
+                        }}
+                        className={`text-sm ${selectedDate && selectedDate.toDateString() === new Date().toDateString() ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="w-3 h-3 bg-blue-50 border-2 border-blue-400 rounded mr-2"></div>
+                        Today's Events
+                      </Button>
+                      
+                      {(filterRSVPed || filterMyClubs || (selectedDate && selectedDate.toDateString() === new Date().toDateString())) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setFilterRSVPed(false);
+                            setFilterMyClubs(false);
+                            setSelectedDate(undefined);
+                          }}
+                          className="text-gray-500 hover:text-gray-700 text-sm"
+                        >
+                          Clear All Filters
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  {(filterRSVPed || filterMyClubs) && (
+                  
+                  {/* Legend for visual reference */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Event Types:</h4>
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-[#012169] rounded"></div>
+                        <span>My Clubs</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-gray-100 border rounded"></div>
+                        <span>Other Clubs</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Heart className="w-3 h-3 text-green-400 fill-current" />
+                        <span>RSVP'd</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-blue-50 border-2 border-blue-400 rounded"></div>
+                        <span>Today</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {(filterRSVPed || filterMyClubs || (selectedDate && selectedDate.toDateString() === new Date().toDateString())) && (
                     <div className="text-xs text-gray-500 italic">
-                      Active filters: {filterRSVPed && "My Events"} {filterRSVPed && filterMyClubs && " + "} {filterMyClubs && "My Clubs"}
+                      Active filters: 
+                      {filterMyClubs && " My Clubs"}
+                      {filterRSVPed && " • RSVP'd Events"}
+                      {(selectedDate && selectedDate.toDateString() === new Date().toDateString()) && " • Today's Events"}
                     </div>
                   )}
                 </div>
