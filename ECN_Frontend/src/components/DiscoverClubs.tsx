@@ -14,7 +14,8 @@ import {
   CheckCircle,
   ExternalLink,
   TrendingUp,
-  Clock
+  Clock,
+  X
 } from "lucide-react";
 
 interface Club {
@@ -24,7 +25,7 @@ interface Club {
   category: string;
   school: string[];
   members: number;
-  rating: 4.5 | 4.6 | 4.7 | 4.8 | 4.9;
+  rating: 2.5 | 4.6 | 4.7 | 4.8 | 4.9;
   verified: boolean;
   lastUpdated: string;
   nextEvent: {
@@ -191,7 +192,7 @@ const mockClubs: Club[] = [
     category: "Environmental",
     school: ["Liberal Arts", "Public Health", "Undergraduate"],
     members: 95,
-    rating: 4.7,
+    rating: 2.5,
     verified: true,
     lastUpdated: "2 days ago",
     nextEvent: {
@@ -236,6 +237,8 @@ export function DiscoverClubs() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [sortBy, setSortBy] = useState("discoverability");
   const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   const filteredAndSortedClubs = useMemo(() => {
     let filtered = mockClubs.filter(club => {
@@ -290,6 +293,7 @@ export function DiscoverClubs() {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Discover Clubs</h1>
                 <p className="text-gray-600 mt-2">Find your community from {mockClubs.length} active organizations</p>
+
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <TrendingUp className="w-4 h-4" />
@@ -473,7 +477,13 @@ export function DiscoverClubs() {
                     {/* Actions */}
                     <div className="space-y-3">
                       <div className="space-y-2">
-                        <Button className="w-full bg-[#012169] hover:bg-[#001a5c]">
+                        <Button 
+                          className="w-full bg-[#012169] hover:bg-[#001a5c]"
+                          onClick={() => {
+                            setSelectedClub(club);
+                            setShowModal(true);
+                          }}
+                        >
                           View Details
                         </Button>
                         <Button variant="outline" className="w-full">
@@ -516,6 +526,123 @@ export function DiscoverClubs() {
           )}
         </div>
       </div>
+
+      {/* Modal */}
+      {showModal && selectedClub && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#f3f4f6',
+            borderRadius: '24px',
+            padding: '32px',
+            maxWidth: '672px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                padding: '8px',
+                borderRadius: '50%',
+                border: 'none',
+                backgroundColor: 'transparent',
+                cursor: 'pointer'
+              }}
+            >
+              <X style={{ width: '24px', height: '24px' }} />
+            </button>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'black', margin: 0 }}>
+                {selectedClub.name}
+              </h2>
+              
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'black', marginBottom: '8px' }}>Description:</h3>
+                <p style={{ color: 'black', lineHeight: '1.6', margin: 0 }}>{selectedClub.description}</p>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  <span style={{
+                    backgroundColor: '#1e3a8a',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '14px'
+                  }}>
+                    {selectedClub.category}
+                  </span>
+                  {selectedClub.school.map((school, idx) => (
+                    <span key={idx} style={{
+                      backgroundColor: '#86efac',
+                      color: 'white',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '14px'
+                    }}>
+                      {school}
+                    </span>
+                  ))}
+                  {selectedClub.tags.map((tag, idx) => (
+                    <span key={idx} style={{
+                      backgroundColor: '#9ca3af',
+                      color: 'black',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '14px'
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <div style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '14px'
+                  }}>
+                    {selectedClub.members} members
+                  </div>
+                  <div style={{
+                    backgroundColor: selectedClub.rating >= 3.5 ? '#22c55e' :
+                                   selectedClub.rating >= 2.0 ? '#eab308' : '#ef4444',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <Star style={{ width: '16px', height: '16px', fill: 'currentColor' }} />
+                    {selectedClub.rating}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
