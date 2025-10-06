@@ -1,37 +1,45 @@
+import React from "react";
 import { Button } from "./ui/button";
-import { Search, Bell, User } from "lucide-react";
-
-type Page = "home" | "discover" | "events" | "myClubs" | "officers";
+import { Search, Bell, User, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
+  isLoggedIn: boolean;
+  setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export function Header({ currentPage, onNavigate }: HeaderProps) {
+export function Header({ isLoggedIn, setIsLoggedIn }: HeaderProps) {
+  const navigate = useNavigate();
+
   const navItems = [
-    { id: "discover" as const, label: "Discover Clubs" },
-    { id: "events" as const, label: "Events" },
-    { id: "myClubs" as const, label: "My Clubs" },
-    { id: "officers" as const, label: "For Officers" },
+    { id: "discover", label: "Discover Clubs", path: "/discover" },
+    { id: "events", label: "Events", path: "/events" },
+    { id: "myClubs", label: "My Clubs", path: "/myclubs" },
+    { id: "officers", label: "For Officers", path: "/officers" },
   ];
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    navigate("/");
+  };
 
   return (
     <header className="bg-white border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo and Brand */}
+          {/* Logo */}
           <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => onNavigate("home")}
+            <button
+              onClick={() => navigate("/")}
               className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
             >
-              {/* Emory "E" placeholder - would use real logo */}
               <div className="w-8 h-8 bg-[#012169] text-white rounded flex items-center justify-center font-bold">
                 E
               </div>
               <div>
-                <span className="text-lg font-semibold text-gray-900">Club Nexus</span>
+                <span className="text-lg font-semibold text-gray-900">
+                  Club Nexus
+                </span>
                 <div className="text-xs text-gray-500">Emory University</div>
               </div>
             </button>
@@ -42,12 +50,8 @@ export function Header({ currentPage, onNavigate }: HeaderProps) {
             {navItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => onNavigate(item.id)}
-                className={`transition-colors ${
-                  currentPage === item.id
-                    ? "text-[#012169] font-medium"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
+                onClick={() => navigate(item.path)}
+                className="text-gray-600 hover:text-gray-900 transition-colors"
               >
                 {item.label}
               </button>
@@ -63,10 +67,26 @@ export function Header({ currentPage, onNavigate }: HeaderProps) {
             <Button variant="ghost" size="sm">
               <Bell className="w-4 h-4" />
             </Button>
-            <Button size="sm">
-              <User className="w-4 h-4 mr-2" />
-              NetID Login
-            </Button>
+
+            {isLoggedIn ? (
+              <Button
+                size="sm"
+                onClick={handleLogout}
+                className="bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all font-semibold"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Log Out
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => navigate("/signin")}
+                className="bg-[#012169] text-white hover:bg-[#0a2e6e] active:bg-[#001a57] transition-all font-semibold shadow-sm"
+              >
+                <User className="w-4 h-4 mr-2" />
+                NetID Login
+              </Button>
+            )}
           </div>
         </div>
       </div>

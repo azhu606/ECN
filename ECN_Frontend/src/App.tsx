@@ -1,5 +1,7 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { Routes, Route } from "react-router-dom";
 import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
 import { Hero } from "./components/Hero";
 import { Features } from "./components/Features";
 import { ClubPreview } from "./components/ClubPreview";
@@ -8,41 +10,40 @@ import { DiscoverClubs } from "./components/DiscoverClubs";
 import { Events } from "./components/Events";
 import { MyClubs } from "./components/MyClubs";
 import { ForOfficers } from "./components/ForOfficers";
-import { Footer } from "./components/Footer";
-
-type Page = "home" | "discover" | "events" | "myClubs" | "officers";
+import SignIn from "./pages/SignIn";
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("home");
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case "discover":
-        return <DiscoverClubs />;
-      case "events":
-        return <Events />;
-      case "myClubs":
-        return <MyClubs />;
-      case "officers":
-        return <ForOfficers />;
-      default:
-        return (
-          <>
-            <Hero />
-            <Features />
-            <ClubPreview />
-            <CallToAction />
-          </>
-        );
-    }
-  };
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white">
-      <Header currentPage={currentPage} onNavigate={setCurrentPage} />
-      <main>
-        {renderPage()}
+    <div className="flex flex-col min-h-screen bg-white">
+      <Header isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+
+      <main className="flex-1">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <Hero />
+                <Features />
+                <ClubPreview />
+                <CallToAction />
+              </>
+            }
+          />
+
+          <Route path="/discover" element={<DiscoverClubs />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/myclubs" element={<MyClubs />} />
+          <Route path="/officers" element={<ForOfficers />} />
+          <Route
+            path="/signin"
+            element={<SignIn setIsLoggedIn={setIsLoggedIn} />}
+          />
+        </Routes>
       </main>
+
       <Footer />
     </div>
   );
