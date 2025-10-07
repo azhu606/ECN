@@ -1,5 +1,6 @@
 import { Button } from "./ui/button";
-import { Search, Bell, User } from "lucide-react";
+import { Search, Bell, User, Zap } from "lucide-react";
+import { useAuth } from '../context/AuthContext';
 
 type Page = "home" | "discover" | "events" | "myClubs" | "officers";
 
@@ -15,6 +16,21 @@ export function Header({ currentPage, onNavigate }: HeaderProps) {
     { id: "myClubs" as const, label: "My Clubs" },
     { id: "officers" as const, label: "For Officers" },
   ];
+
+  const { user, setUser } = useAuth();
+
+  const toggleMockLogin = () => {
+    if (user) {
+      setUser(null);
+      localStorage.removeItem('ecn_user');
+    } else {
+      const fake = { id: 'jdoe', name: 'John Doe' };
+      setUser(fake);
+      localStorage.setItem('ecn_user', JSON.stringify(fake));
+    }
+    // reload to make it clear in the UI quickly
+    window.location.reload();
+  };
 
   return (
     <header className="bg-white border-b border-border sticky top-0 z-50">
@@ -63,9 +79,9 @@ export function Header({ currentPage, onNavigate }: HeaderProps) {
             <Button variant="ghost" size="sm">
               <Bell className="w-4 h-4" />
             </Button>
-            <Button size="sm">
-              <User className="w-4 h-4 mr-2" />
-              NetID Login
+            <Button size="sm" onClick={toggleMockLogin} title="Toggle mock NetID login for dev/testing">
+              <Zap className="w-4 h-4 mr-2" />
+              {user ? `Logout ${user.name}` : 'Mock NetID'}
             </Button>
           </div>
         </div>
