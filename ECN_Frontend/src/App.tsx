@@ -9,6 +9,7 @@ import { Events } from "./components/Events";
 import { MyClubs } from "./components/MyClubs";
 import { ForOfficers } from "./components/ForOfficers";
 import { Footer } from "./components/Footer";
+import { AuthProvider } from './context/AuthContext';
 
 type Page = "home" | "discover" | "events" | "myClubs" | "officers";
 
@@ -38,12 +39,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <Header currentPage={currentPage} onNavigate={setCurrentPage} />
-      <main>
-        {renderPage()}
-      </main>
-      <Footer />
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-white">
+        <Header currentPage={currentPage} onNavigate={setCurrentPage} />
+        <main>
+          {renderPage()}
+        </main>
+        <Footer />
+      </div>
+    </AuthProvider>
   );
 }
