@@ -9,3 +9,24 @@ in case u need a refresher:
 REMINDER: this is only for frontend
 
 it should be working
+
+
+Backend: 
+Have postgres on your system and Pgamdin or DBeaver
+
+create server group for ECN, 
+create server on 170.0.0.1 // localhost 
+port 5432 
+
+in Dbeaver or Pgadmin, inside the server run using the query tool: CREATE DATABASE ecn;
+
+in terminal cd into ECN_Backend 
+source .venv/bin/activate
+python db_ops.create
+python -c "from seed_data import seed_data; seed_data()"
+python app.py
+
+TO check if it works in browser enter 
+http://127.0.0.1:5000/api/health 
+
+it should ok:'true' if it works
