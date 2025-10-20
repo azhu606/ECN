@@ -1,4 +1,3 @@
-# routes.py
 from flask import Blueprint, request, jsonify
 from services import list_clubs, create_club, list_events, create_event, search_clubs_smart
 

@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # Import your models & Base
-from ecn_models import (
+from models import (
     Base,
     Club,
     Event,
@@ -19,8 +19,7 @@ from ecn_models import (
 # ------------------------------------------------------------------
 # Engine / Session
 # ------------------------------------------------------------------
-DB_URL = os.getenv("ECN_DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5432/ecn")
-
+DB_URL = os.getenv("ECN_DATABASE_URL", "postgresql+psycopg2://postgres@127.0.0.1:5432/ecn")
 engine = create_engine(DB_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 

@@ -238,6 +238,6 @@ class ReviewModeration(Base):
 # ---------------- Create-all helper for local dev env----------------
 if __name__ == "__main__":
     # Adjust DSN to your local or global environment for deployment
-    engine = create_engine("postgresql+psycopg2://user:password@localhost:5432/ecn")
+    engine = create_engine("postgresql+psycopg2://postgres@127.0.0.1:5432/ecn")
     Base.metadata.create_all(engine)
     print("ECN tables created.")
