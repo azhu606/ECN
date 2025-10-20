@@ -1,3 +1,6 @@
+import React from "react";
+
+
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Users, Settings, TrendingUp, Shield } from "lucide-react";
