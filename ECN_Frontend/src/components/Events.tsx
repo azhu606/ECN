@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -45,7 +46,7 @@ interface Event {
 // User's clubs for filtering - these would come from user's actual club memberships
 const myClubs = ["Pre-Medical Society", "Computer Science Society", "Sustainability Action Network"];
 
-const mockEvents: Event[] = [
+const initialEvents: Event[] = [
   {
     id: "1",
     name: "Goldman Sachs Info Session",
@@ -267,18 +268,28 @@ export function Events() {
   const [filterMyClubs, setFilterMyClubs] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [localRSVPed, setLocalRSVPed] = useState<{ [id: string]: boolean }>({});
+  const [events, setEvents] = useState<Event[]>(initialEvents);
+  const { user, anonymousId } = useAuth();
 
   // RSVP and Share handlers
   const handleRSVP = async (eventId: string) => {
     try {
-      const res = await fetch('http://localhost:5001/rsvps', { // currently using localhost for test purposes 
+  const API_URL = ((import.meta as any)?.env?.VITE_API_URL) || 'http://localhost:5001';
+  // Use real user id from Auth context if available, otherwise use persistent anonymous id.
+  // Note: NetID login integration is not available yet in this repo (waiting on another contributor),
+  // so anonymousId will be used until a logged-in user exists.
+  const userIdToSend = user?.id || anonymousId;
+
+      const res = await fetch(`${API_URL}/rsvps`, { // currently using localhost for test purposes 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, userId: 'jskorn7' }) // userId test 
+        body: JSON.stringify({ eventId, userId: userIdToSend })
       });
 
       if (res.ok) {
         setLocalRSVPed(prev => ({ ...prev, [eventId]: true }));
+        // update local event state so the UI shows the RSVP and increments registered count
+        setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, isRSVPed: true, registered: ev.registered + 1 } : ev));
         alert("RSVP successful!");
       } else {
         const data = await res.json();
@@ -304,8 +315,6 @@ export function Events() {
     }
   };
 
-
-
   const categories = [
     "All Categories", 
     "Academic", 
@@ -318,7 +327,7 @@ export function Events() {
   ];
 
   const filteredEvents = useMemo(() => {
-    return mockEvents.filter(event => {
+  return events.filter(event => {
       const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            event.club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -334,7 +343,7 @@ export function Events() {
 
       return matchesSearch && matchesCategory && matchesDate && matchesRSVP && matchesMyClubs;
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [searchTerm, selectedCategory, selectedDate, filterRSVPed, filterMyClubs]);
+  }, [events, searchTerm, selectedCategory, selectedDate, filterRSVPed, filterMyClubs]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -362,7 +371,7 @@ export function Events() {
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
-    const days = [];
+  const days: Date[] = [];
     const current = new Date(startDate);
     
     // Generate 42 days (6 weeks)
@@ -376,7 +385,7 @@ export function Events() {
 
   const getEventsForDate = (date: Date) => {
     const dateString = date.toISOString().split('T')[0];
-    return mockEvents.filter(event => {
+  return events.filter(event => {
       const eventDate = event.date;
       const matchesDate = eventDate === dateString;
       const matchesMyClubs = !filterMyClubs || myClubs.includes(event.club.name);
