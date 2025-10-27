@@ -7,6 +7,14 @@ import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Alert, AlertDescription } from "./ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import { 
   BarChart3, 
   Users, 
@@ -137,6 +145,8 @@ export function ForOfficers() {
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementText, setAnnouncementText] = useState("");
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -302,23 +312,43 @@ export function ForOfficers() {
                   <CardTitle>Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => setSelectedTab("events")}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Event
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => setSelectedTab("profile")}
+                  >
                     <Edit className="w-4 h-4 mr-2" />
                     Update Club Profile
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => setShowAnnouncementModal(true)}
+                  >
                     <Mail className="w-4 h-4 mr-2" />
                     Send Announcement
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => setSelectedTab("members")}
+                  >
                     <Users className="w-4 h-4 mr-2" />
                     Manage Members
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => setSelectedTab("analytics")}
+                  >
                     <BarChart3 className="w-4 h-4 mr-2" />
                     View Analytics
                   </Button>
@@ -612,6 +642,67 @@ export function ForOfficers() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Announcement Modal */}
+      <Dialog open={showAnnouncementModal} onOpenChange={setShowAnnouncementModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Send Announcement to Members</DialogTitle>
+            <DialogDescription>
+              This announcement will be sent to all {clubMetrics.members} members of Pre-Medical Society via email and in-app notification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="subject" className="text-sm font-medium">
+                Subject
+              </label>
+              <Input
+                id="subject"
+                placeholder="Enter announcement subject..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="message" className="text-sm font-medium">
+                Message
+              </label>
+              <Textarea
+                id="message"
+                placeholder="Type your announcement here..."
+                value={announcementText}
+                onChange={(e) => setAnnouncementText(e.target.value)}
+                rows={6}
+              />
+            </div>
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+              <Bell className="w-4 h-4 text-blue-600" />
+              <span className="text-sm text-blue-900">
+                Members will receive both email and push notifications
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAnnouncementModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                // Here you would normally send the announcement to your backend
+                alert(`Announcement sent to ${clubMetrics.members} members!`);
+                setAnnouncementText("");
+                setShowAnnouncementModal(false);
+              }}
+              className="bg-[#012169] hover:bg-[#001a5c]"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Send Announcement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
