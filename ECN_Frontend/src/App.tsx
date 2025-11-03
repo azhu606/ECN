@@ -36,8 +36,8 @@ export default function App() {
             />
             <Route path="/discover" element={<DiscoverClubs />} />
             <Route path="/events" element={<Events />} />
-            <Route path="/myclubs" element={<MyClubs />} />
-            <Route path="/officers" element={<ForOfficers />} />
+            <Route path="/myclubs" element={<MyClubs isLoggedIn={isLoggedIn} />} />
+            <Route path="/officers" element={<ForOfficers isLoggedIn={isLoggedIn} />} />
             <Route
               path="/signin"
               element={<SignIn setIsLoggedIn={setIsLoggedIn} />}

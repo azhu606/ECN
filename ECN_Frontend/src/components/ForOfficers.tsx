@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -33,7 +34,9 @@ import {
   Target,
   Award,
   Heart,
-  MessageSquare
+  MessageSquare,
+  Lock,
+  ShieldAlert
 } from "lucide-react";
 
 interface ClubMetrics {
@@ -141,12 +144,79 @@ const recentActivity: RecentActivity[] = [
   }
 ];
 
-export function ForOfficers() {
+interface ForOfficersProps {
+  isLoggedIn: boolean;
+}
+
+export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
+
+  // If not logged in, show authentication prompt
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+        <Card className="max-w-md w-full shadow-2xl">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 bg-[#012169] rounded-full flex items-center justify-center">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Officer Access Required
+              </h2>
+              <p className="text-gray-600">
+                This page is exclusively for club officers. Please sign in with your NetID to access the officer dashboard.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-start space-x-2">
+                <ShieldAlert className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-left text-blue-900">
+                  <p className="font-semibold">Officer Dashboard Features:</p>
+                  <ul className="mt-2 space-y-1 text-blue-700">
+                    <li>• Manage club events and announcements</li>
+                    <li>• Track member engagement & analytics</li>
+                    <li>• Update club profile information</li>
+                    <li>• View and respond to member inquiries</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <Button 
+                onClick={() => navigate("/signin")}
+                className="w-full bg-[#012169] hover:bg-[#0a2e6e] text-white h-11 text-base font-semibold"
+              >
+                Sign In with NetID
+              </Button>
+              
+              <Button 
+                onClick={() => navigate("/")}
+                variant="outline"
+                className="w-full h-11 text-base"
+              >
+                Back to Homepage
+              </Button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Don't have officer access? Contact your club president or visit the main site to join clubs.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const getActivityIcon = (type: string) => {
     switch (type) {
