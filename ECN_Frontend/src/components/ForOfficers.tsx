@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -69,6 +69,7 @@ interface RecentActivity {
   time: string;
 }
 
+/* 
 const clubMetrics: ClubMetrics = {
   members: 180,
   memberGrowth: 12,
@@ -79,6 +80,7 @@ const clubMetrics: ClubMetrics = {
   freshnessScore: 92,
   engagementScore: 85
 };
+*/
 
 const upcomingEvents: UpcomingEvent[] = [
   {
@@ -149,12 +151,39 @@ interface ForOfficersProps {
 }
 
 export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
+  // TEMP: Verify frontend can see backend URL
+  console.log("API URL:", import.meta.env.VITE_API_URL);
+
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const CLUB_ID = "ad29a854-649e-42da-b2a2-f79e4d5e7f8c"; // test purposes 
+
+  const [clubMetrics, setClubMetrics] = useState<ClubMetrics | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        const res = await fetch(`${API_URL}/clubs/${CLUB_ID}/metrics`);
+        if (!res.ok) throw new Error("Failed to fetch metrics.");
+        const data = await res.json();
+        setClubMetrics(data);
+      } catch (err: any) {
+        setMetricsError(err.message);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    }
+
+    fetchMetrics();
+  }, []);
 
   // If not logged in, show authentication prompt
   if (!isLoggedIn) {
@@ -217,6 +246,10 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
       </div>
     );
   }
+
+  if (loadingMetrics) return <div className="p-10 text-center">Loading analytics...</div>;
+  if (metricsError) return <div className="p-10 text-center text-red-500">{metricsError}</div>;
+  if (!clubMetrics) return <div className="p-10 text-center">No analytics available.</div>;
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -643,6 +676,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </div>
           </TabsContent>
 
+          
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
             <h2 className="text-2xl font-bold">Club Analytics</h2>

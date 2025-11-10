@@ -14,7 +14,9 @@ import SignIn from "./pages/SignIn";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Temporary state: default to true until changes are done
+  // TODOL revert to false after implementing officer features
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
 
   return (
     <AuthProvider>
