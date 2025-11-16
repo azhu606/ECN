@@ -1,14 +1,16 @@
 from flask import Blueprint, request, jsonify, make_response, redirect
 from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, auth_register, auth_login, auth_me, auth_cookie_name, send_verification_link, complete_verification, _FRONTEND_BASE
 import os
+from db_ops import get_session
+from models import Club, Event
 
 api_bp = Blueprint("api", __name__)
 
 @api_bp.get("/clubs")
 def get_clubs():
     q = request.args.get("q", "").strip()
-    school = request.args.get("school")  # currently unused placeholder
-    category = request.args.get("category")  # currently unused placeholder
+    school = request.args.get("school")
+    category = request.args.get("category")
     verified = request.args.get("verified", "false").lower() == "true"
     sort = request.args.get("sort", "discoverability")
     try:
@@ -38,6 +40,8 @@ def post_club():
     club_id = create_club(payload)
     return jsonify({"id": club_id}), 201
 
+# ----------------- Events --------------------
+
 @api_bp.get("/events")
 def get_events():
     upcoming = request.args.get("upcoming", "true").lower() != "false"
@@ -49,11 +53,61 @@ def post_event():
     event_id = create_event(payload)
     return jsonify({"id": event_id}), 201
 
+# ------------ Health ----------------
 @api_bp.get("/health")
 def health():
     return {"ok": True}
 
-# =================== SPRINT 6 ROUTES =======================
+
+# ---------- Officer / Analytics ----------
+@api_bp.get("/clubs/<uuid:club_id>/metrics")
+def get_club_metrics(club_id):
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        members = len(club.member_ids or [])
+
+        events = session.query(Event).filter(Event.club_id == club_id).all()
+        total_registered = sum(len(e.rsvp_ids or []) for e in events)
+        total_attended = sum(len(e.attendee_ids or []) for e in events)
+        attendance_rate = round(
+            (total_attended / total_registered) * 100, 1
+        ) if total_registered else 0.0
+
+        #RAGHAV WHOEVER DID THE METRICS LEFT THIS AS A PLACEHOLDER.
+        #I DONT THINK THIS IS USEFUL AT ALL BUT NOT DELETING IT IN CASE
+
+        """
+        # (Optional) rating example if you need later:
+        avg_rating = session.query(func.avg(Review.rating))\
+             .filter(Review.club_id == club_id).scalar() or 0
+
+        #Simple placeholders—replace with real analytics later
+        """
+
+        member_growth = 12
+        profile_views = 245
+        profile_growth = 8
+        freshness_score = 92
+        engagement_score = min(100, int(0.6 * attendance_rate + 0.4 * 85))
+
+        event_attendance = int(round(total_attended / len(events))) if events else 0
+
+        payload = {
+            "members": members,
+            "memberGrowth": member_growth,
+            "eventAttendance": event_attendance,
+            "attendanceRate": attendance_rate,
+            "profileViews": profile_views,
+            "profileGrowth": profile_growth,
+            "freshnessScore": freshness_score,
+            "engagementScore": engagement_score,
+        }
+        return jsonify(payload)
+
+# ---------- User Registration and Login ----------------
 @api_bp.post("/auth/register")
 def auth_register_route():
     #entrypoint for register, hash sets and sends verify link or returns it in dev
