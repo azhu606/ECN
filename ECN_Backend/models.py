@@ -38,11 +38,12 @@ class Student(Base):
     netid: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    #Added these two
+    
+    #Registration and login variables
     password_hash: Mapped[str | None] = mapped_column(String)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
-    # Arrays default to empty (NOT NULL)
+    # Arrays default to empty
     my_clubs: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, server_default=text("'{}'")
     )
