@@ -21,7 +21,8 @@ _VERIFY_TTL_MIN = int(os.getenv("ECN_VERIFY_TTL_MIN", "15"))
 
 #===== Email configurations ======
 #When we deploy, we will need to change dev to smtp. Right now, it will simply return the email.
-#When the mode changes, it will actually send an email
+#When the mode changes, it will actually send an email (I am thinking of using either AMAZON SES or SendGrid. That is not yet implemented)
+#To implement actually sending emails we gotta pay so doing that at the VERY end.
 _EMAIL_MODE = os.getenv("ECN_EMAIL_MODE", "dev")  # "dev" or "smtp"
 
 _SMTP_HOST = os.getenv("ECN_SMTP_HOST", "")       # e.g., "smtp.gmail.com"
