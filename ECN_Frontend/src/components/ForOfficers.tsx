@@ -241,64 +241,40 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     }
   };
 
-  const parseNaturalLanguageEvent = (text: string) => {
-    // Mock parsing - in real implementation, this would use AI/NLP
-    const parsed = {
-      title: "",
-      description: text,
-      location: "",
-      datetime: ""
-    };
-
-    // Simple keyword extraction
-    const lowerText = text.toLowerCase();
-    
-    // Extract title from common patterns
-    if (lowerText.includes("panel")) {
-      parsed.title = "Medical School Panel";
-    } else if (lowerText.includes("study group") || lowerText.includes("mcat")) {
-      parsed.title = "MCAT Study Group";
-    } else if (lowerText.includes("symposium") || lowerText.includes("research")) {
-      parsed.title = "Research Symposium";
-    } else {
-      // Extract first few words as title
-      const words = text.split(" ").slice(0, 3).join(" ");
-      parsed.title = words.charAt(0).toUpperCase() + words.slice(1);
-    }
-
-    // Extract location
-    const locationKeywords = ["chemistry building", "library", "auditorium", "room"];
-    for (const keyword of locationKeywords) {
-      if (lowerText.includes(keyword)) {
-        const index = lowerText.indexOf(keyword);
-        const locationPart = text.substring(index, index + 30);
-        parsed.location = locationPart.split(" ").slice(0, 4).join(" ");
-        break;
+  const parseNaturalLanguageEvent = async (text: string) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/events/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to parse event');
       }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error parsing event:', error);
+      return {
+        title: text.split(' ').slice(0, 3).join(' '),
+        description: text,
+        location: '',
+        datetime: ''
+      };
     }
-
-    // Extract date/time (simplified)
-    const today = new Date();
-    if (lowerText.includes("friday")) {
-      const nextFriday = new Date(today);
-      nextFriday.setDate(today.getDate() + (5 - today.getDay() + 7) % 7);
-      if (lowerText.includes("7pm") || lowerText.includes("7:00")) {
-        nextFriday.setHours(19, 0);
-      }
-      parsed.datetime = nextFriday.toISOString().slice(0, 16);
-    }
-
-    return parsed;
   };
 
-  const handleQuickCreate = () => {
+  const handleQuickCreate = async () => {
     if (!naturalLanguageEvent.trim()) return;
     
-    const parsed = parseNaturalLanguageEvent(naturalLanguageEvent);
-    setNewEventTitle(parsed.title);
-    setNewEventDescription(parsed.description);
-    setNewEventLocation(parsed.location);
-    setNewEventDateTime(parsed.datetime);
+    const parsed = await parseNaturalLanguageEvent(naturalLanguageEvent);
+    setNewEventTitle(parsed.title || '');
+    setNewEventDescription(parsed.description || naturalLanguageEvent);
+    setNewEventLocation(parsed.location || '');
+    setNewEventDateTime(parsed.datetime || '');
     setShowCreateEventModal(true);
   };
 
@@ -515,7 +491,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   rows={2}
                 />
                 <div className="flex gap-2">
-                  <Button onClick={handleQuickCreate}>Create</Button>
+                  <Button onClick={handleQuickCreate} disabled={!naturalLanguageEvent.trim()}>Create</Button>
                   <Button variant="outline">Save as Draft</Button>
                 </div>
               </CardContent>
