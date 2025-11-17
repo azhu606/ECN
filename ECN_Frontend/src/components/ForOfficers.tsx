@@ -150,10 +150,14 @@ interface ForOfficersProps {
 
 export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const navigate = useNavigate();
-  const [selectedTab, setSelectedTab] = useState("dashboard");
+  const [selectedTab, setSelectedTab] = useState("events");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventLocation, setNewEventLocation] = useState("");
+  const [newEventDateTime, setNewEventDateTime] = useState("");
+  const [naturalLanguageEvent, setNaturalLanguageEvent] = useState("");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);  
   const [announcementText, setAnnouncementText] = useState("");
 
   // If not logged in, show authentication prompt
@@ -235,6 +239,67 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
       case "live": return "bg-blue-100 text-blue-800";
       default: return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const parseNaturalLanguageEvent = (text: string) => {
+    // Mock parsing - in real implementation, this would use AI/NLP
+    const parsed = {
+      title: "",
+      description: text,
+      location: "",
+      datetime: ""
+    };
+
+    // Simple keyword extraction
+    const lowerText = text.toLowerCase();
+    
+    // Extract title from common patterns
+    if (lowerText.includes("panel")) {
+      parsed.title = "Medical School Panel";
+    } else if (lowerText.includes("study group") || lowerText.includes("mcat")) {
+      parsed.title = "MCAT Study Group";
+    } else if (lowerText.includes("symposium") || lowerText.includes("research")) {
+      parsed.title = "Research Symposium";
+    } else {
+      // Extract first few words as title
+      const words = text.split(" ").slice(0, 3).join(" ");
+      parsed.title = words.charAt(0).toUpperCase() + words.slice(1);
+    }
+
+    // Extract location
+    const locationKeywords = ["chemistry building", "library", "auditorium", "room"];
+    for (const keyword of locationKeywords) {
+      if (lowerText.includes(keyword)) {
+        const index = lowerText.indexOf(keyword);
+        const locationPart = text.substring(index, index + 30);
+        parsed.location = locationPart.split(" ").slice(0, 4).join(" ");
+        break;
+      }
+    }
+
+    // Extract date/time (simplified)
+    const today = new Date();
+    if (lowerText.includes("friday")) {
+      const nextFriday = new Date(today);
+      nextFriday.setDate(today.getDate() + (5 - today.getDay() + 7) % 7);
+      if (lowerText.includes("7pm") || lowerText.includes("7:00")) {
+        nextFriday.setHours(19, 0);
+      }
+      parsed.datetime = nextFriday.toISOString().slice(0, 16);
+    }
+
+    return parsed;
+  };
+
+  const handleQuickCreate = () => {
+    if (!naturalLanguageEvent.trim()) return;
+    
+    const parsed = parseNaturalLanguageEvent(naturalLanguageEvent);
+    setNewEventTitle(parsed.title);
+    setNewEventDescription(parsed.description);
+    setNewEventLocation(parsed.location);
+    setNewEventDateTime(parsed.datetime);
+    setShowCreateEventModal(true);
   };
 
   return (
@@ -431,7 +496,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           <TabsContent value="events" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Manage Events</h2>
-              <Button>
+              <Button onClick={() => setShowCreateEventModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Event
               </Button>
@@ -443,21 +508,14 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardTitle>Quick Create Event</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Input
-                    placeholder="Event title"
-                    value={newEventTitle}
-                    onChange={(e) => setNewEventTitle(e.target.value)}
-                  />
-                  <Input type="datetime-local" />
-                </div>
                 <Textarea
-                  placeholder="Event description"
-                  value={newEventDescription}
-                  onChange={(e) => setNewEventDescription(e.target.value)}
+                  placeholder="Describe your event in natural language (e.g., 'Medical school panel next Friday at 7pm in the chemistry building')"
+                  value={naturalLanguageEvent}
+                  onChange={(e) => setNaturalLanguageEvent(e.target.value)}
+                  rows={2}
                 />
                 <div className="flex gap-2">
-                  <Button>Create & Publish</Button>
+                  <Button onClick={handleQuickCreate}>Create</Button>
                   <Button variant="outline">Save as Draft</Button>
                 </div>
               </CardContent>
@@ -713,7 +771,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         </Tabs>
       </div>
 
-      {/* Announcement Modal */}
+      {/* Modals */}
       <Dialog open={showAnnouncementModal} onOpenChange={setShowAnnouncementModal}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -773,6 +831,70 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      
+      {showCreateEventModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: 'white',
+              padding: '24px',
+              borderRadius: '8px',
+              width: '400px',
+              maxWidth: '90vw'
+            }}
+          >
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>Create New Event</h2>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>Fill in the event details.</p>
+            <div style={{ marginBottom: '16px' }}>
+              <Input
+                placeholder="Event title"
+                value={newEventTitle}
+                onChange={(e) => setNewEventTitle(e.target.value)}
+                style={{ marginBottom: '8px' }}
+              />
+              <Input 
+                type="datetime-local" 
+                value={newEventDateTime}
+                onChange={(e) => setNewEventDateTime(e.target.value)}
+                style={{ marginBottom: '8px' }} 
+              />
+              <Textarea
+                placeholder="Event description"
+                value={newEventDescription}
+                onChange={(e) => setNewEventDescription(e.target.value)}
+                rows={3}
+                style={{ marginBottom: '8px' }}
+              />
+              <Input
+                placeholder="Event location"
+                value={newEventLocation}
+                onChange={(e) => setNewEventLocation(e.target.value)}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <Button variant="outline" onClick={() => setShowCreateEventModal(false)}>
+                Cancel
+              </Button>
+              <Button>Create Event</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
