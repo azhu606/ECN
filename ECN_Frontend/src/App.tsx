@@ -14,7 +14,7 @@ import SignIn from "./pages/SignIn";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // placeholder true, logging in is buggy
 
   return (
     <AuthProvider>
@@ -36,8 +36,14 @@ export default function App() {
             />
             <Route path="/discover" element={<DiscoverClubs />} />
             <Route path="/events" element={<Events />} />
-            <Route path="/myclubs" element={<MyClubs isLoggedIn={isLoggedIn} />} />
-            <Route path="/officers" element={<ForOfficers isLoggedIn={isLoggedIn} />} />
+            <Route
+              path="/myclubs"
+              element={<MyClubs isLoggedIn={isLoggedIn} />}
+            />
+            <Route
+              path="/officers"
+              element={<ForOfficers isLoggedIn={isLoggedIn} />}
+            />
             <Route
               path="/signin"
               element={<SignIn setIsLoggedIn={setIsLoggedIn} />}
@@ -50,4 +56,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
