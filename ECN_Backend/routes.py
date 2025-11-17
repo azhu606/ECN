@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services import list_clubs, create_club, list_events, create_event, search_clubs_smart
+from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, parse_event
 
 api_bp = Blueprint("api", __name__)
 
@@ -47,6 +47,27 @@ def post_event():
     payload = request.get_json(force=True) or {}
     event_id = create_event(payload)
     return jsonify({"id": event_id}), 201
+
+@api_bp.post("/events/parse")
+def parse_event_text():
+    payload = request.get_json(force=True) or {}
+    text = payload.get("text", "")
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+    parsed = parse_event(text)
+    response = jsonify(parsed)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'POST')
+    return response
+
+@api_bp.options("/events/parse")
+def parse_event_options():
+    response = jsonify({})
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'POST')
+    return response
 
 @api_bp.get("/health")
 def health():

@@ -243,6 +243,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
 
   const parseNaturalLanguageEvent = async (text: string) => {
     try {
+      console.log('Making API call with text:', text);
       const response = await fetch('http://127.0.0.1:5000/api/events/parse', {
         method: 'POST',
         headers: {
@@ -251,18 +252,30 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         body: JSON.stringify({ text }),
       });
       
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
       if (!response.ok) {
-        throw new Error('Failed to parse event');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      return await response.json();
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+      
+      const result = JSON.parse(responseText);
+      console.log('Parsed JSON result:', result);
+      console.log('Result keys:', Object.keys(result));
+      console.log('startTime value:', result.startTime);
+      console.log('location value:', result.location);
+      
+      return result;
     } catch (error) {
       console.error('Error parsing event:', error);
       return {
         title: text.split(' ').slice(0, 3).join(' '),
         description: text,
         location: '',
-        datetime: ''
+        startTime: ''
       };
     }
   };
@@ -271,10 +284,23 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     if (!naturalLanguageEvent.trim()) return;
     
     const parsed = await parseNaturalLanguageEvent(naturalLanguageEvent);
-    setNewEventTitle(parsed.title || '');
-    setNewEventDescription(parsed.description || naturalLanguageEvent);
-    setNewEventLocation(parsed.location || '');
-    setNewEventDateTime(parsed.datetime || '');
+    console.log('Parsed response:', parsed);
+    
+    // Handle both possible response formats
+    const title = parsed.title || '';
+    const description = parsed.description || naturalLanguageEvent;
+    const location = parsed.location || '';
+    const datetime = parsed.startTime ? parsed.startTime.slice(0, 16) : (parsed.datetime || '');
+    
+    console.log('Setting title:', title);
+    console.log('Setting description:', description);
+    console.log('Setting location:', location);
+    console.log('Setting datetime:', datetime);
+    
+    setNewEventTitle(title);
+    setNewEventDescription(description);
+    setNewEventLocation(location);
+    setNewEventDateTime(datetime);
     setShowCreateEventModal(true);
   };
 

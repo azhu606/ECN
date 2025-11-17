@@ -252,3 +252,294 @@ def list_clubs(
         items.sort(key=_key, reverse=reverse)
 
         return {"items": items, "total": total}
+
+
+# ---- Event Parser ----
+import re
+import json
+from typing import Optional
+
+# Sample data for testing/fallback
+_SAMPLE_CLUB_MAPPING = {
+    "algory capital": "algory-capital-uuid",
+    "emory consulting group": "consulting-group-uuid", 
+    "ai society": "ai-society-uuid",
+    "blockchain club": "blockchain-club-uuid",
+    "emory data science club": "data-science-uuid",
+    "impact investing group": "impact-investing-uuid",
+    "goizueta finance club": "finance-club-uuid",
+    "emory entrepreneurship club": "entrepreneurship-uuid",
+    "marketing analytics club": "marketing-analytics-uuid",
+    "qqqqqqq": "quant-econ-uuid"
+}
+
+_SAMPLE_LOCATIONS = [
+    "Goizueta Business School", "White Hall", "Math & Science Center",
+    "Emory Student Center", "Cox Hall", "Library Quad", "Rich Building",
+    "Callaway Center", "Woodruff PE Center", "Virtual / Zoom"
+]
+
+# Location keywords for partial matching
+_LOCATION_KEYWORDS = {
+    "goizueta": "Goizueta Business School",
+    "white": "White Hall",
+    "math": "Math & Science Center",
+    "science": "Math & Science Center",
+    "student": "Emory Student Center",
+    "cox": "Cox Hall",
+    "library": "Library Quad",
+    "rich": "Rich Building",
+    "callaway": "Callaway Center",
+    "woodruff": "Woodruff PE Center",
+    "virtual": "Virtual / Zoom",
+    "zoom": "Virtual / Zoom"
+}
+
+def load_club_mapping():
+    try:
+        with get_session() as s:
+            clubs = s.query(Club).all()
+            print(f"Loaded {len(clubs)} clubs from database")  # Debug
+            return {club.name.lower(): str(club.id) for club in clubs}
+    except Exception as e:
+        print(f"Database error, using fallback: {e}")  # Debug
+        return _SAMPLE_CLUB_MAPPING
+
+
+def load_locations():
+    """Load locations from database with fallback to sample data."""
+    try:
+        with get_session() as s:
+            locations = s.query(Event.location).distinct().filter(Event.location.isnot(None)).all()
+            result = [loc[0] for loc in locations]
+            return result if result else _SAMPLE_LOCATIONS
+    except:
+        return _SAMPLE_LOCATIONS
+
+def ai_parse_event(text: str) -> Optional[Dict[str, Any]]:
+    """Use AI to parse event text - primary parsing method."""
+    try:
+        try:
+            from openai import OpenAI
+        except ImportError:
+            print("OpenAI package not installed, skipping AI parsing")
+            return None
+            
+        from datetime import datetime
+        import os
+        
+        # Try to load from .env file
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass  # dotenv not installed, use system env vars
+        
+        # Check if OpenAI API key is available
+        if not os.getenv('OPENAI_API_KEY'):
+            print("OpenAI API key not found, skipping AI parsing")
+            return None
+            
+        client = OpenAI()
+        clubs = load_club_mapping()
+        locations = load_locations()
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        prompt = f"""Parse this event description into JSON format. Extract:
+- Club name (match from available clubs)
+- Event title (concise, descriptive)
+- Start date/time (ISO format: YYYY-MM-DDTHH:MM:SS)
+- End date/time (ISO format, assume 2 hours if not specified)
+- Location (match from available locations, include room numbers)
+- Description (brief summary)
+
+Available clubs: {list(clubs.keys())}
+Available locations: {locations}
+Current date: {current_date}
+
+Event text: "{text}"
+
+Return JSON with this exact structure:
+{{
+  "clubId": "uuid-from-clubs",
+  "title": "Event Title",
+  "startTime": "YYYY-MM-DDTHH:MM:SS",
+  "endTime": "YYYY-MM-DDTHH:MM:SS",
+  "description": "Brief description",
+  "location": "Location with room number if applicable"
+}}
+
+Return only the JSON, no other text:"""
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.1
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        # Clean up response to extract JSON
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0]
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1]
+        
+        result = json.loads(result_text)
+        
+        # Map club name to UUID
+        if "clubId" in result:
+            club_found = False
+            for club, uuid in clubs.items():
+                if club.lower() in text.lower() or club.lower() in result.get("title", "").lower():
+                    result["clubId"] = uuid
+                    club_found = True
+                    break
+            if not club_found:
+                result["clubId"] = list(clubs.values())[0]  # Default to first club
+        
+        return result
+    except Exception as e:
+        print(f"AI parsing failed: {e}")
+        return None
+
+def get_default_event() -> Dict[str, Any]:
+    """Default event when all parsing fails."""
+    tomorrow = datetime(2025, 11, 4, 18, 0)  # Tomorrow 6 PM
+    return {
+        "clubId": "ai-society-uuid",  # Default to AI Society
+        "title": "AI Society General Meeting",
+        "startTime": tomorrow.isoformat(),
+        "endTime": (tomorrow + timedelta(hours=2)).isoformat(),
+        "description": "General club meeting",
+        "location": "Goizueta Business School"
+    }
+
+def parse_event(text: str) -> Dict[str, Any]:
+    """Convert natural language to event JSON matching create_event() schema."""
+    # Try AI parsing first
+    ai_result = ai_parse_event(text)
+    if ai_result:
+        return ai_result
+    
+    # Fallback to rule-based parsing
+    return rule_based_parse(text)
+
+def rule_based_parse(text: str) -> Dict[str, Any]:
+    """Rule-based parsing as fallback when AI parsing fails."""
+    text_lower = text.lower()
+    club_mapping = load_club_mapping()
+    locations = load_locations()
+    
+    # Extract club
+    club_id = None
+    club_name = ""
+    for club, uuid in club_mapping.items():
+        if club in text_lower:
+            club_id = uuid
+            club_name = club.title()
+            break
+    
+    # If no club found, use default
+    if not club_id:
+        return get_default_event()
+    
+    # Extract location with room number support
+    location = None
+    for loc in locations:
+        if loc.lower() in text_lower:
+            # Check for room number after location
+            room_match = re.search(rf'{re.escape(loc.lower())}\s+(\d+)', text_lower)
+            if room_match:
+                location = f"{loc} {room_match.group(1)}"
+            else:
+                location = loc
+            break
+    
+    # Check for partial location matches using keywords
+    if not location:
+        # Clean up punctuation for better matching
+        clean_words = re.sub(r'[,.]', '', text_lower).split()
+        for word in clean_words:
+            if word in _LOCATION_KEYWORDS:
+                matched_location = _LOCATION_KEYWORDS[word]
+                # Check for room number after this word
+                room_match = re.search(rf'{re.escape(word)}\s+(\d+)', text_lower)
+                if room_match:
+                    location = f"{matched_location} {room_match.group(1)}"
+                else:
+                    location = matched_location
+                break
+    
+    # Extract time - use current date as base
+    base_date = datetime.now().date()
+    
+    # Day parsing
+    if "next friday" in text_lower:
+        days_ahead = (4 - base_date.weekday()) % 7 + 7
+        event_date = base_date + timedelta(days=days_ahead)
+    elif "tomorrow" in text_lower:
+        event_date = base_date + timedelta(days=1)
+    elif "today" in text_lower:
+        event_date = base_date
+    else:
+        event_date = base_date + timedelta(days=1)  # Default tomorrow
+    
+    # Time parsing
+    time_match = re.search(r'(\d{1,2}):?(\d{2})?\s*(am|pm)', text_lower)
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2)) if time_match.group(2) else 0
+        if time_match.group(3) == 'pm' and hour != 12:
+            hour += 12
+        elif time_match.group(3) == 'am' and hour == 12:
+            hour = 0
+    else:
+        hour, minute = 18, 0  # Default 6 PM
+    
+    start_time = datetime.combine(event_date, datetime.min.time().replace(hour=hour, minute=minute))
+    
+    # Duration parsing
+    duration_match = re.search(r'(\d+)\s*(?:minutes?|mins?|hours?|hrs?)', text_lower)
+    if duration_match:
+        duration_val = int(duration_match.group(1))
+        if 'hour' in text_lower or 'hr' in text_lower:
+            duration = timedelta(hours=duration_val)
+        else:
+            duration = timedelta(minutes=duration_val)
+    else:
+        duration = timedelta(hours=2)  # Default 2 hours
+    
+    end_time = start_time + duration
+    
+    # Extract title and description
+    # Remove club name, time, location, and common words for cleaner parsing
+    clean_text = text
+    if club_name:
+        clean_text = re.sub(re.escape(club_name), '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\b(?:next|tomorrow|today)\s+\w*day\b', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\d{1,2}:?\d{0,2}\s*(?:am|pm)', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\b(?:at|in)\s+[^,]+', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\d+\s*(?:minutes?|mins?|hours?|hrs?)', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'[,]+', '', clean_text)
+    
+    # Split into title and description
+    words = [w for w in clean_text.split() if w.lower() not in ['on', 'at', 'in', 'the', 'a', 'an', 'for']]
+    
+    if len(words) <= 3:
+        title = f"{club_name} {' '.join(words)}".strip() if club_name else ' '.join(words)
+        description = None
+    else:
+        title_words = words[:3]
+        desc_words = words[3:]
+        title = f"{club_name} {' '.join(title_words)}".strip() if club_name else ' '.join(title_words)
+        description = ' '.join(desc_words) if desc_words else None
+    
+    return {
+        "clubId": club_id,
+        "title": title,
+        "startTime": start_time.isoformat(),
+        "endTime": end_time.isoformat(),
+        "description": description,
+        "location": location
+    }
