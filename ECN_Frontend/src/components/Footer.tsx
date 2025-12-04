@@ -65,7 +65,7 @@ export function Footer() {
           <div className="flex items-center space-x-6 text-sm text-gray-400">
             <span>Built for Emory Students</span>
             <span>•</span>
-            <span>NetID Authentication</span>
+            <span>Emory Email Log In</span>
             <span>•</span>
             <span>WCAG 2.1 AA</span>
           </div>
