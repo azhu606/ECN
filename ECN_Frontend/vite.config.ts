@@ -59,7 +59,7 @@ export default defineConfig({
     open: true,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:5000",
+        target: "https://ecn.onrender.com",
         changeOrigin: true,
         // if your Flask app doesn't use a trailing slash behavior, keep rewrite as identity
         // rewrite: (path) => path,
