@@ -20,7 +20,8 @@ import {
   Heart,
   Share2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download
 } from "lucide-react";
 
 interface Event {
@@ -313,6 +314,83 @@ export function Events() {
       navigator.clipboard.writeText(shareText);
       alert('Link copied to clipboard!');
     }
+  };
+
+  const exportToICS = () => {
+    // Generate ICS (iCalendar) file for all filtered events
+    const eventsToExport = filteredEvents;
+    
+    if (eventsToExport.length === 0) {
+      alert('No events to export!');
+      return;
+    }
+
+    // Helper function to format date/time for ICS
+    const formatICSDate = (dateStr: string, timeStr: string) => {
+      const [year, month, day] = dateStr.split('-');
+      const [time, period] = timeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      return `${year}${month}${day}T${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
+    };
+
+    const formatICSEndDate = (dateStr: string, endTimeStr: string) => {
+      const [year, month, day] = dateStr.split('-');
+      const [time, period] = endTimeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      return `${year}${month}${day}T${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}00`;
+    };
+
+    // Build ICS content
+    let icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Emory Club Nexus//Events Calendar//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:Emory Club Events',
+      'X-WR-TIMEZONE:America/New_York',
+    ];
+
+    eventsToExport.forEach(event => {
+      const startDateTime = formatICSDate(event.date, event.time);
+      const endDateTime = formatICSEndDate(event.date, event.endTime);
+      const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      
+      icsContent.push(
+        'BEGIN:VEVENT',
+        `UID:${event.id}@clubnexus.emory.edu`,
+        `DTSTAMP:${now}`,
+        `DTSTART:${startDateTime}`,
+        `DTEND:${endDateTime}`,
+        `SUMMARY:${event.name}`,
+        `DESCRIPTION:${event.description}\\n\\nHosted by: ${event.club.name}\\nTags: ${event.tags.join(', ')}`,
+        `LOCATION:${event.location}`,
+        `ORGANIZER;CN=${event.club.name}:MAILTO:noreply@clubnexus.emory.edu`,
+        event.isRSVPed ? 'STATUS:CONFIRMED' : 'STATUS:TENTATIVE',
+        'END:VEVENT'
+      );
+    });
+
+    icsContent.push('END:VCALENDAR');
+
+    // Create and download the file
+    const blob = new Blob([icsContent.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = `emory-club-events-${new Date().toISOString().split('T')[0]}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert(`Successfully exported ${eventsToExport.length} event(s) to your calendar!`);
   };
 
   const categories = [
@@ -723,6 +801,15 @@ export function Events() {
                     {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </CardTitle>
                   <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={exportToICS}
+                      className="bg-[#012169] hover:bg-[#001a5c] text-white"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Calendar
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => navigateMonth('prev')}>
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
