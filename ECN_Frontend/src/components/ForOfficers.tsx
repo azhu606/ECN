@@ -25,7 +25,6 @@ import {
   Edit,
   Eye,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -37,6 +36,7 @@ import {
   MessageSquare,
   Lock,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 
 const PLACEHOLDER_CLUB_ID = "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
@@ -69,15 +69,20 @@ interface ClubProfile {
   updateRecencyBadge: string | null;
 }
 
+type EventStatus = "upcoming" | "past" | "cancelled";
+
 interface UpcomingEvent {
   id: string;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  capacity: number;
-  registered: number;
-  status: "draft" | "published" | "live";
+  clubId: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startTime: string; // ISO
+  endTime: string;
+  status: EventStatus;
+  capacity: number | null;
+  registeredCount: number;
+  attendeeCount: number;
 }
 
 interface RecentActivity {
@@ -87,39 +92,6 @@ interface RecentActivity {
   action: string;
   time: string;
 }
-
-const upcomingEvents: UpcomingEvent[] = [
-  {
-    id: "1",
-    name: "Medical School Panel",
-    date: "2024-10-20",
-    time: "7:00 PM",
-    location: "Chemistry Building Room 240",
-    capacity: 100,
-    registered: 78,
-    status: "published",
-  },
-  {
-    id: "2",
-    name: "MCAT Study Group",
-    date: "2024-10-22",
-    time: "6:00 PM",
-    location: "Library Study Room 3A",
-    capacity: 20,
-    registered: 15,
-    status: "published",
-  },
-  {
-    id: "3",
-    name: "Research Symposium",
-    date: "2024-10-28",
-    time: "2:00 PM",
-    location: "Rollins School Auditorium",
-    capacity: 200,
-    registered: 45,
-    status: "draft",
-  },
-];
 
 const recentActivity: RecentActivity[] = [
   {
@@ -159,8 +131,15 @@ interface ForOfficersProps {
 export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState("dashboard");
+
+  // Quick-create event form fields
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventLocation, setNewEventLocation] = useState("");
+  const [newEventStart, setNewEventStart] = useState(""); // datetime-local string
+  const [newEventEnd, setNewEventEnd] = useState("");
+  const [newEventCapacity, setNewEventCapacity] = useState("");
+
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
 
@@ -174,6 +153,15 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState<boolean>(false);
+
+  // Events state
+  const [events, setEvents] = useState<UpcomingEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState<boolean>(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+
+  // Edit event dialog
+  const [editingEvent, setEditingEvent] = useState<UpcomingEvent | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Fetch metrics
   useEffect(() => {
@@ -225,6 +213,32 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     }
 
     fetchProfile();
+  }, []);
+
+  // Fetch upcoming events
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        setEventsLoading(true);
+        setEventsError(null);
+        const res = await fetch(
+          `${API_BASE}/clubs/${PLACEHOLDER_CLUB_ID}/events?upcoming=true`,
+          { credentials: "include" }
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load events (${res.status})`);
+        }
+        const data: UpcomingEvent[] = await res.json();
+        setEvents(data);
+      } catch (err) {
+        console.error("Error loading events", err);
+        setEventsError("Unable to load upcoming events right now.");
+      } finally {
+        setEventsLoading(false);
+      }
+    }
+
+    fetchEvents();
   }, []);
 
   const metrics: ClubMetrics = clubMetrics ?? {
@@ -290,6 +304,150 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
       setProfileError(err.message || "Failed to save profile.");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  // Create new event
+  const handleCreateEvent = async () => {
+    if (!newEventTitle.trim()) {
+      alert("Please enter an event title.");
+      return;
+    }
+    if (!newEventStart || !newEventEnd) {
+      alert("Please enter start and end times.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/clubs/${PLACEHOLDER_CLUB_ID}/events`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            title: newEventTitle.trim(),
+            description: newEventDescription || null,
+            location: newEventLocation || null,
+            startTime: newEventStart,
+            endTime: newEventEnd,
+            capacity: newEventCapacity ? Number(newEventCapacity) : null,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Create failed (${res.status})`);
+      }
+
+      const created: UpcomingEvent = await res.json();
+      setEvents((prev) =>
+        [...prev, created].sort(
+          (a, b) =>
+            new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        )
+      );
+
+      // Clear form
+      setNewEventTitle("");
+      setNewEventDescription("");
+      setNewEventLocation("");
+      setNewEventStart("");
+      setNewEventEnd("");
+      setNewEventCapacity("");
+    } catch (err: any) {
+      console.error("Error creating event", err);
+      alert(err.message || "Failed to create event.");
+    }
+  };
+
+  // Open edit dialog
+  const openEditDialog = (event: UpcomingEvent) => {
+    setEditingEvent(event);
+    setEditDialogOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditingEvent(null);
+  };
+
+  // Save edits
+  const handleSaveEventEdit = async () => {
+    if (!editingEvent) return;
+    if (!editingEvent.title.trim()) {
+      alert("Title cannot be empty.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/clubs/${PLACEHOLDER_CLUB_ID}/events/${editingEvent.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            title: editingEvent.title.trim(),
+            description: editingEvent.description,
+            location: editingEvent.location,
+            startTime: editingEvent.startTime,
+            endTime: editingEvent.endTime,
+            capacity:
+              editingEvent.capacity !== null
+                ? Number(editingEvent.capacity)
+                : null,
+            status: editingEvent.status,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Update failed (${res.status})`);
+      }
+
+      const updated: UpcomingEvent = await res.json();
+      setEvents((prev) =>
+        prev
+          .map((e) => (e.id === updated.id ? updated : e))
+          .sort(
+            (a, b) =>
+              new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          )
+      );
+      closeEditDialog();
+    } catch (err: any) {
+      console.error("Error updating event", err);
+      alert(err.message || "Failed to update event.");
+    }
+  };
+
+  // Delete event
+  const handleDeleteEvent = async () => {
+    if (!editingEvent) return;
+    if (!window.confirm("Delete this event? This cannot be undone.")) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/clubs/${PLACEHOLDER_CLUB_ID}/events/${editingEvent.id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Delete failed (${res.status})`);
+      }
+
+      setEvents((prev) => prev.filter((e) => e.id !== editingEvent.id));
+      closeEditDialog();
+    } catch (err: any) {
+      console.error("Error deleting event", err);
+      alert(err.message || "Failed to delete event.");
     }
   };
 
@@ -384,6 +542,19 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -625,10 +796,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           <TabsContent value="events" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Manage Events</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Event
-              </Button>
             </div>
 
             {/* Quick Create Event */}
@@ -643,16 +810,70 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}
                   />
-                  <Input type="datetime-local" />
+                  <Input
+                    placeholder="Location"
+                    value={newEventLocation}
+                    onChange={(e) => setNewEventLocation(e.target.value)}
+                  />
                 </div>
-                <Textarea
-                  placeholder="Event description"
-                  value={newEventDescription}
-                  onChange={(e) => setNewEventDescription(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button>Create & Publish</Button>
-                  <Button variant="outline">Save as Draft</Button>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-500">Start time</label>
+                    <Input
+                      type="datetime-local"
+                      value={newEventStart}
+                      onChange={(e) => setNewEventStart(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-500">End time</label>
+                    <Input
+                      type="datetime-local"
+                      value={newEventEnd}
+                      onChange={(e) => setNewEventEnd(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4 items-end">
+                  <Textarea
+                    placeholder="Event description"
+                    value={newEventDescription}
+                    onChange={(e) => setNewEventDescription(e.target.value)}
+                  />
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-500">
+                        Capacity (optional)
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={newEventCapacity}
+                        onChange={(e) => setNewEventCapacity(e.target.value)}
+                        placeholder="e.g. 100"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button onClick={handleCreateEvent}>
+                        Create &amp; Publish
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setNewEventTitle("");
+                          setNewEventDescription("");
+                          setNewEventLocation("");
+                          setNewEventStart("");
+                          setNewEventEnd("");
+                          setNewEventCapacity("");
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -663,36 +884,63 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardTitle>Upcoming Events</CardTitle>
               </CardHeader>
               <CardContent>
+                {eventsLoading && (
+                  <p className="text-sm text-gray-500">Loading events…</p>
+                )}
+                {eventsError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription>{eventsError}</AlertDescription>
+                  </Alert>
+                )}
+                {!eventsLoading && events.length === 0 && !eventsError && (
+                  <p className="text-sm text-gray-500">
+                    No upcoming events yet. Create one above!
+                  </p>
+                )}
+
                 <div className="space-y-4">
-                  {upcomingEvents.map((event) => (
+                  {events.map((event) => (
                     <div
                       key={event.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex items-center justify-between p-4 border rounded-lg bg-white"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
-                          <h4 className="font-medium">{event.name}</h4>
-                          <Badge className={getStatusColor(event.status)}>
-                            {event.status}
+                          <h4 className="font-medium">{event.title}</h4>
+                          <Badge className="bg-blue-50 text-blue-800 border border-blue-100">
+                            {event.status === "cancelled"
+                              ? "Cancelled"
+                              : "Upcoming"}
                           </Badge>
                         </div>
                         <div className="text-sm text-gray-600">
-                          {event.date} at {event.time} • {event.location}
+                          {formatDate(event.startTime)} at{" "}
+                          {formatTime(event.startTime)} •{" "}
+                          {event.location || "Location TBA"}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {event.registered}/{event.capacity} registered
+                          {event.capacity
+                            ? `${event.registeredCount}/${event.capacity} registered`
+                            : `${event.registeredCount} registered`}
                         </div>
-                        <Progress
-                          value={(event.registered / event.capacity) * 100}
-                          className="w-48 h-2"
-                        />
+                        {event.capacity && (
+                          <Progress
+                            value={
+                              event.capacity
+                                ? (event.registeredCount / event.capacity) * 100
+                                : 0
+                            }
+                            className="w-48 h-2"
+                          />
+                        )}
                       </div>
                       <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="w-3 h-3 mr-1" />
-                          View
-                        </Button>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditDialog(event)}
+                        >
                           <Edit className="w-3 h-3 mr-1" />
                           Edit
                         </Button>
@@ -729,7 +977,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* CHANGED: card reflects backend growth instead of fixed 15/8% */}
+              {/* growth card */}
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
@@ -829,7 +1077,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
 
                   {clubProfile && (
                     <>
-                      {/* Only DB-backed fields kept; meeting time/location/website removed */}
                       <Input
                         placeholder="Club Name"
                         value={clubProfile.name}
@@ -970,7 +1217,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             )}
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* CHANGED: shows backend engagementScore instead of fake Discoverability Index */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -987,7 +1233,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Profile Views from backend */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1005,7 +1250,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Attendance from backend (replaces fake Info Requests) */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1025,7 +1269,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Members from backend (replaces fake Avg Rating) */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1062,6 +1305,150 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Event Modal */}
+      <Dialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setEditingEvent(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Event</DialogTitle>
+            <DialogDescription>
+              Update event details or delete the event.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingEvent && (
+            <div className="space-y-4 py-4">
+              <Input
+                placeholder="Event title"
+                value={editingEvent.title}
+                onChange={(e) =>
+                  setEditingEvent({ ...editingEvent, title: e.target.value })
+                }
+              />
+
+              <Input
+                placeholder="Location"
+                value={editingEvent.location || ""}
+                onChange={(e) =>
+                  setEditingEvent({
+                    ...editingEvent,
+                    location: e.target.value,
+                  })
+                }
+              />
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500">Start time</label>
+                  <Input
+                    type="datetime-local"
+                    value={editingEvent.startTime.slice(0, 16)}
+                    onChange={(e) =>
+                      setEditingEvent({
+                        ...editingEvent,
+                        startTime: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500">End time</label>
+                  <Input
+                    type="datetime-local"
+                    value={editingEvent.endTime.slice(0, 16)}
+                    onChange={(e) =>
+                      setEditingEvent({
+                        ...editingEvent,
+                        endTime: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <Textarea
+                placeholder="Event description"
+                value={editingEvent.description || ""}
+                onChange={(e) =>
+                  setEditingEvent({
+                    ...editingEvent,
+                    description: e.target.value,
+                  })
+                }
+                rows={4}
+              />
+
+              <div className="grid md:grid-cols-2 gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500">
+                    Capacity (optional)
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={
+                      editingEvent.capacity !== null
+                        ? String(editingEvent.capacity)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setEditingEvent({
+                        ...editingEvent,
+                        capacity: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500">Status</label>
+                  <select
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                    value={editingEvent.status}
+                    onChange={(e) =>
+                      setEditingEvent({
+                        ...editingEvent,
+                        status: e.target.value as EventStatus,
+                      })
+                    }
+                  >
+                    <option value="upcoming">Upcoming</option>
+                    <option value="past">Past</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex justify-between items-center">
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={handleDeleteEvent}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete
+            </Button>
+            <div className="space-x-2">
+              <Button variant="outline" onClick={closeEditDialog}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEventEdit}>
+                <Edit className="w-4 h-4 mr-1" />
+                Save Changes
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Announcement Modal */}
       <Dialog

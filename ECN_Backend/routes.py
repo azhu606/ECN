@@ -3,6 +3,11 @@ from services import list_clubs, create_club, list_events, create_event, search_
 import os
 from db_ops import get_session
 from models import Club, Event
+from datetime import datetime
+from sqlalchemy import func
+from models import Club, Event  # you already have this
+from db_ops import get_session   # already present
+
 
 api_bp = Blueprint("api", __name__)
 
@@ -336,3 +341,185 @@ def update_club_profile(club_id):
             "updateRecencyBadge": club.update_recency_badge,
         }
         return jsonify(payload)
+
+
+# ---------- Club-specific Events CRUD ----------
+
+def _serialize_event(e: Event) -> dict:
+    return {
+        "id": str(e.id),
+        "clubId": str(e.club_id),
+        "title": e.title,
+        "description": e.description,
+        "location": e.location,
+        "startTime": e.start_time.isoformat(),
+        "endTime": e.end_time.isoformat(),
+        "status": e.status,
+        "capacity": e.rsvp_limit,
+        "registeredCount": len(e.rsvp_ids or []),
+        "attendeeCount": len(e.attendee_ids or []),
+    }
+
+
+@api_bp.get("/clubs/<uuid:club_id>/events")
+def get_club_events(club_id):
+    """
+    List events for a club. Defaults to upcoming-only.
+    GET /clubs/<club_id>/events?upcoming=true|false
+    """
+    upcoming_only = request.args.get("upcoming", "true").lower() != "false"
+
+    with get_session() as session:
+        query = session.query(Event).filter(Event.club_id == club_id)
+
+        if upcoming_only:
+            query = query.filter(
+                Event.start_time >= func.now(),
+                Event.status == "upcoming",
+            )
+
+        events = (
+            query.order_by(Event.start_time.asc())
+            .all()
+        )
+
+        return jsonify([_serialize_event(e) for e in events])
+
+
+@api_bp.post("/clubs/<uuid:club_id>/events")
+def create_club_event(club_id):
+    """
+    Create a new event for a club.
+    Body:
+    {
+      "title": "string",                # required
+      "description": "string | null",
+      "location": "string | null",
+      "startTime": "2024-10-20T19:00",  # required, ISO string
+      "endTime": "2024-10-20T21:00",    # required
+      "capacity": 100                   # optional
+    }
+    """
+    body = request.get_json(force=True) or {}
+
+    title = (body.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+
+    try:
+        start_time_str = body.get("startTime")
+        end_time_str = body.get("endTime")
+        if not start_time_str or not end_time_str:
+            raise ValueError("startTime and endTime are required")
+        start_time = datetime.fromisoformat(start_time_str)
+        end_time = datetime.fromisoformat(end_time_str)
+    except Exception as e:
+        return jsonify({"error": f"Invalid date/time: {e}"}), 400
+
+    capacity = body.get("capacity")
+    if capacity is not None:
+        try:
+            capacity = int(capacity)
+        except ValueError:
+            return jsonify({"error": "capacity must be an integer"}), 400
+
+    with get_session() as session:
+        # Optional: ensure club exists
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        event = Event(
+            club_id=club_id,
+            title=title,
+            description=body.get("description"),
+            location=body.get("location"),
+            start_time=start_time,
+            end_time=end_time,
+            status="upcoming",
+            rsvp_limit=capacity,
+        )
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+
+        return jsonify(_serialize_event(event)), 201
+
+
+@api_bp.put("/clubs/<uuid:club_id>/events/<uuid:event_id>")
+def update_club_event(club_id, event_id):
+    """
+    Edit an event for a club.
+    Accepts any subset of:
+    - title
+    - description
+    - location
+    - startTime
+    - endTime
+    - capacity
+    - status ("upcoming" | "past" | "cancelled")
+    """
+    body = request.get_json(force=True) or {}
+
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event or event.club_id != club_id:
+            return jsonify({"error": "Event not found"}), 404
+
+        if "title" in body:
+            title = (body["title"] or "").strip()
+            if not title:
+                return jsonify({"error": "Title cannot be empty"}), 400
+            event.title = title
+
+        if "description" in body:
+            event.description = body["description"]
+
+        if "location" in body:
+            event.location = body["location"]
+
+        if "startTime" in body:
+            try:
+                event.start_time = datetime.fromisoformat(body["startTime"])
+            except Exception as e:
+                return jsonify({"error": f"Invalid startTime: {e}"}), 400
+
+        if "endTime" in body:
+            try:
+                event.end_time = datetime.fromisoformat(body["endTime"])
+            except Exception as e:
+                return jsonify({"error": f"Invalid endTime: {e}"}), 400
+
+        if "capacity" in body:
+            cap = body["capacity"]
+            if cap is None:
+                event.rsvp_limit = None
+            else:
+                try:
+                    event.rsvp_limit = int(cap)
+                except ValueError:
+                    return jsonify({"error": "capacity must be an integer"}), 400
+
+        if "status" in body:
+            event.status = body["status"]
+
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+
+        return jsonify(_serialize_event(event))
+
+
+@api_bp.delete("/clubs/<uuid:club_id>/events/<uuid:event_id>")
+def delete_club_event(club_id, event_id):
+    """
+    Delete an event for a club.
+    """
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event or event.club_id != club_id:
+            return jsonify({"error": "Event not found"}), 404
+
+        session.delete(event)
+        session.commit()
+        return jsonify({"ok": True})
