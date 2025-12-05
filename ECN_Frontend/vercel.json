@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://https://ecn.onrender.com/api/:path*"
+      "destination": "https://ecn.onrender.com/api/:path*"
     }
   ]
 }
