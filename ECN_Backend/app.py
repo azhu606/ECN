@@ -7,7 +7,7 @@ def create_app():
     app = Flask(__name__)
 
     # PostgreSQL connection (no password)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql+psycopg2://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # Register blueprints
