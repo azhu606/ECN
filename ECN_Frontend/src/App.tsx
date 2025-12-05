@@ -13,12 +13,8 @@ import { MyClubs } from "./components/MyClubs";
 import { ForOfficers } from "./components/ForOfficers";
 import SignIn from "./pages/SignIn";
 import { AuthProvider } from "./context/AuthContext";
-import SignUp from "./pages/SignUp"; 
+import SignUp from "./pages/SignUp";
 import Verification from "./pages/Verification";
-
-
-
-
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(true); // placeholder true, logging in is buggy
@@ -27,11 +23,12 @@ export default function App() {
     <AuthProvider>
       <div className="flex flex-col min-h-screen bg-white">
         <Header isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
-        
+
         <div className="flex flex-1">
           {/* Sidebar (only shows when logged in) */}
           <Sidebar isLoggedIn={isLoggedIn} />
 
+        </div>
 
         <main className="flex-1">
           <Routes>
@@ -67,8 +64,6 @@ export default function App() {
 
             <Route path="/signup" element={<SignUp />} />
             <Route path="/verify" element={<Verification />} />
-
-
           </Routes>
         </main>
 
