@@ -1,5 +1,7 @@
 import { useState } from "react";
+import type React from "react";
 import { useNavigate } from "react-router-dom";
+
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -16,10 +18,37 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { 
-  BarChart3, 
-  Users, 
-  Calendar, 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+
+import {
+  BarChart3,
+  Users,
+  Calendar,
   Settings,
   Plus,
   Edit,
@@ -36,7 +65,13 @@ import {
   Heart,
   MessageSquare,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  UserX,
+  ArrowDown,
+  RefreshCw,
+  Upload,
+  FileText,
+  Building2,
 } from "lucide-react";
 
 interface ClubMetrics {
@@ -69,6 +104,15 @@ interface RecentActivity {
   time: string;
 }
 
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  position: "president" | "officer" | "member";
+  joinDate: string;
+  eventsAttended: number;
+}
+
 const clubMetrics: ClubMetrics = {
   members: 180,
   memberGrowth: 12,
@@ -77,7 +121,7 @@ const clubMetrics: ClubMetrics = {
   profileViews: 245,
   profileGrowth: 8,
   freshnessScore: 92,
-  engagementScore: 85
+  engagementScore: 85,
 };
 
 const upcomingEvents: UpcomingEvent[] = [
@@ -89,7 +133,7 @@ const upcomingEvents: UpcomingEvent[] = [
     location: "Chemistry Building Room 240",
     capacity: 100,
     registered: 78,
-    status: "published"
+    status: "published",
   },
   {
     id: "2",
@@ -99,7 +143,7 @@ const upcomingEvents: UpcomingEvent[] = [
     location: "Library Study Room 3A",
     capacity: 20,
     registered: 15,
-    status: "published"
+    status: "published",
   },
   {
     id: "3",
@@ -109,8 +153,8 @@ const upcomingEvents: UpcomingEvent[] = [
     location: "Rollins School Auditorium",
     capacity: 200,
     registered: 45,
-    status: "draft"
-  }
+    status: "draft",
+  },
 ];
 
 const recentActivity: RecentActivity[] = [
@@ -119,29 +163,118 @@ const recentActivity: RecentActivity[] = [
     type: "join",
     user: "Sarah Chen",
     action: "joined the club",
-    time: "2 hours ago"
+    time: "2 hours ago",
   },
   {
     id: "2",
     type: "rsvp",
     user: "Michael Rodriguez",
     action: "RSVP'd to Medical School Panel",
-    time: "4 hours ago"
+    time: "4 hours ago",
   },
   {
     id: "3",
     type: "inquiry",
     user: "Emily Johnson",
     action: "sent an info request",
-    time: "6 hours ago"
+    time: "6 hours ago",
   },
   {
     id: "4",
     type: "review",
     user: "David Park",
     action: "left a 5-star review",
-    time: "1 day ago"
-  }
+    time: "1 day ago",
+  },
+];
+
+const initialMembers: Member[] = [
+  {
+    id: "1",
+    name: "John Williams",
+    email: "john.williams@emory.edu",
+    position: "president",
+    joinDate: "2023-08-15",
+    eventsAttended: 24,
+  },
+  {
+    id: "2",
+    name: "Sarah Chen",
+    email: "sarah.chen@emory.edu",
+    position: "officer",
+    joinDate: "2023-09-01",
+    eventsAttended: 22,
+  },
+  {
+    id: "3",
+    name: "Michael Rodriguez",
+    email: "michael.rodriguez@emory.edu",
+    position: "officer",
+    joinDate: "2023-09-01",
+    eventsAttended: 20,
+  },
+  {
+    id: "4",
+    name: "Emily Johnson",
+    email: "emily.johnson@emory.edu",
+    position: "officer",
+    joinDate: "2023-09-15",
+    eventsAttended: 18,
+  },
+  {
+    id: "5",
+    name: "David Park",
+    email: "david.park@emory.edu",
+    position: "member",
+    joinDate: "2024-01-20",
+    eventsAttended: 15,
+  },
+  {
+    id: "6",
+    name: "Amanda Thompson",
+    email: "amanda.thompson@emory.edu",
+    position: "member",
+    joinDate: "2024-02-10",
+    eventsAttended: 12,
+  },
+  {
+    id: "7",
+    name: "James Lee",
+    email: "james.lee@emory.edu",
+    position: "member",
+    joinDate: "2024-03-05",
+    eventsAttended: 10,
+  },
+  {
+    id: "8",
+    name: "Maria Garcia",
+    email: "maria.garcia@emory.edu",
+    position: "member",
+    joinDate: "2024-04-12",
+    eventsAttended: 8,
+  },
+  {
+    id: "9",
+    name: "Kevin Patel",
+    email: "kevin.patel@emory.edu",
+    position: "member",
+    joinDate: "2024-05-18",
+    eventsAttended: 6,
+  },
+  {
+    id: "10",
+    name: "Lisa Wong",
+    email: "lisa.wong@emory.edu",
+    position: "member",
+    joinDate: "2024-06-22",
+    eventsAttended: 4,
+  },
+];
+
+const availableClubs = [
+  { id: "1", name: "Pre-Medical Society", verified: true },
+  { id: "2", name: "Computer Science Society", verified: true },
+  { id: "3", name: "Debate Society", verified: false },
 ];
 
 interface ForOfficersProps {
@@ -150,13 +283,45 @@ interface ForOfficersProps {
 
 export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const navigate = useNavigate();
+
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
 
-  // If not logged in, show authentication prompt
+  // NEW state from enhanced version
+  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [memberToKick, setMemberToKick] = useState<Member | null>(null);
+  const [showKickDialog, setShowKickDialog] = useState(false);
+  const [showSwitchClubDialog, setShowSwitchClubDialog] = useState(false);
+  const [showRegisterClubDialog, setShowRegisterClubDialog] = useState(false);
+  const [showInviteMemberDialog, setShowInviteMemberDialog] = useState(false);
+  const [currentClub, setCurrentClub] = useState("Pre-Medical Society");
+  const [selectedClubToSwitch, setSelectedClubToSwitch] = useState("");
+
+  const [registrationForm, setRegistrationForm] = useState({
+    clubName: "",
+    category: "Academic",
+    description: "",
+    school: "",
+    presidentName: "",
+    presidentEmail: "",
+    meetingLocation: "",
+    meetingTime: "",
+    website: "",
+    charterFile: null as File | null,
+  });
+
+  const [inviteForm, setInviteForm] = useState({
+    memberName: "",
+    memberEmail: "",
+    message: "",
+  });
+
+  // --------------------
+  // Auth gate (original)
+  // --------------------
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
@@ -167,13 +332,14 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <Lock className="w-8 h-8 text-white" />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <h2 className="text-2xl font-bold text-gray-900">
                 Officer Access Required
               </h2>
               <p className="text-gray-600">
-                This page is exclusively for club officers. Please sign in with your NetID to access the officer dashboard.
+                This page is exclusively for club officers. Please sign in with
+                your NetID to access the officer dashboard.
               </p>
             </div>
 
@@ -193,14 +359,14 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </div>
 
             <div className="space-y-3 pt-2">
-              <Button 
+              <Button
                 onClick={() => navigate("/signin")}
                 className="w-full bg-[#012169] hover:bg-[#0a2e6e] text-white h-11 text-base font-semibold"
               >
                 Sign In with NetID
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={() => navigate("/")}
                 variant="outline"
                 className="w-full h-11 text-base"
@@ -210,7 +376,8 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </div>
 
             <p className="text-xs text-gray-500">
-              Don't have officer access? Contact your club president or visit the main site to join clubs.
+              Don't have officer access? Contact your club president or visit
+              the main site to join clubs.
             </p>
           </CardContent>
         </Card>
@@ -218,25 +385,111 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     );
   }
 
+  // --------------------
+  // Helpers
+  // --------------------
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case "join": return <Users className="w-4 h-4 text-green-500" />;
-      case "rsvp": return <Calendar className="w-4 h-4 text-blue-500" />;
-      case "inquiry": return <Mail className="w-4 h-4 text-orange-500" />;
-      case "review": return <MessageSquare className="w-4 h-4 text-purple-500" />;
-      default: return <Bell className="w-4 h-4 text-gray-500" />;
+      case "join":
+        return <Users className="w-4 h-4 text-green-500" />;
+      case "rsvp":
+        return <Calendar className="w-4 h-4 text-blue-500" />;
+      case "inquiry":
+        return <Mail className="w-4 h-4 text-orange-500" />;
+      case "review":
+        return <MessageSquare className="w-4 h-4 text-purple-500" />;
+      default:
+        return <Bell className="w-4 h-4 text-gray-500" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "published": return "bg-green-100 text-green-800";
-      case "draft": return "bg-yellow-100 text-yellow-800";
-      case "live": return "bg-blue-100 text-blue-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "published":
+        return "bg-green-100 text-green-800";
+      case "draft":
+        return "bg-yellow-100 text-yellow-800";
+      case "live":
+        return "bg-blue-100 text-blue-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
+  const handleKickMember = (member: Member) => {
+    setMemberToKick(member);
+    setShowKickDialog(true);
+  };
+
+  const confirmKickMember = () => {
+    if (memberToKick) {
+      setMembers(members.filter((m) => m.id !== memberToKick.id));
+      setShowKickDialog(false);
+      setMemberToKick(null);
+    }
+  };
+
+  const getPositionBadge = (position: string) => {
+    switch (position) {
+      case "president":
+        return <Badge className="bg-purple-600">President</Badge>;
+      case "officer":
+        return <Badge className="bg-blue-600">Officer</Badge>;
+      case "member":
+        return <Badge variant="outline">Member</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const handleSwitchClub = () => {
+    if (selectedClubToSwitch) {
+      setCurrentClub(selectedClubToSwitch);
+      setShowSwitchClubDialog(false);
+      setSelectedClubToSwitch("");
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setRegistrationForm({
+        ...registrationForm,
+        charterFile: e.target.files[0],
+      });
+    }
+  };
+
+  const handleRegisterClub = () => {
+    // original file had no backend calls; keep this as a placeholder
+    console.log("Registering club:", registrationForm);
+    setRegistrationForm({
+      clubName: "",
+      category: "Academic",
+      description: "",
+      school: "",
+      presidentName: "",
+      presidentEmail: "",
+      meetingLocation: "",
+      meetingTime: "",
+      website: "",
+      charterFile: null,
+    });
+    setShowRegisterClubDialog(false);
+  };
+
+  const handleInviteMember = () => {
+    console.log("Inviting member:", inviteForm);
+    setInviteForm({
+      memberName: "",
+      memberEmail: "",
+      message: "",
+    });
+    setShowInviteMemberDialog(false);
+  };
+
+  // --------------------
+  // Main logged-in UI
+  // --------------------
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -244,24 +497,50 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Officer Dashboard</h1>
-              <p className="text-gray-600 mt-2">Manage your club and track engagement</p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Officer Dashboard
+              </h1>
+              <p className="text-gray-600 mt-2">
+                Manage your club and track engagement
+              </p>
               <div className="flex items-center space-x-4 mt-3">
-                <Badge className="bg-[#012169]">Pre-Medical Society</Badge>
-                <Badge variant="outline" className="text-green-600 border-green-200">
+                <Badge className="bg-[#012169]">{currentClub}</Badge>
+                <Badge
+                  variant="outline"
+                  className="text-green-600 border-green-200"
+                >
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Verified
                 </Badge>
-                <Badge variant="outline" className="text-blue-600 border-blue-200">
+                <Badge
+                  variant="outline"
+                  className="text-blue-600 border-blue-200"
+                >
                   Officer Access
                 </Badge>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <div className="text-right">
-                <div className="text-2xl font-bold text-[#012169]">{clubMetrics.freshnessScore}%</div>
+                <div className="text-2xl font-bold text-[#012169]">
+                  {clubMetrics.freshnessScore}%
+                </div>
                 <div className="text-sm text-gray-500">Freshness Score</div>
               </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowSwitchClubDialog(true)}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Switch Clubs
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowRegisterClubDialog(true)}
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                Register Club
+              </Button>
               <Button>
                 <Settings className="w-4 h-4 mr-2" />
                 Club Settings
@@ -273,23 +552,31 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-5">
+        <Tabs
+          value={selectedTab}
+          onValueChange={setSelectedTab}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full max-w-3xl grid-cols-6">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="orgchart">Org Chart</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
-            {/* Freshness Alert */}
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                Your club profile was last updated 5 days ago. Keep your information fresh with regular updates to maintain high discoverability.
-                <Button variant="link" className="p-0 ml-2 h-auto">Update now →</Button>
+                Your club profile was last updated 5 days ago. Keep your
+                information fresh with regular updates to maintain high
+                discoverability.
+                <Button variant="link" className="p-0 ml-2 h-auto">
+                  Update now →
+                </Button>
               </AlertDescription>
             </Alert>
 
@@ -299,12 +586,18 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{clubMetrics.members}</div>
-                      <div className="text-sm text-gray-500">Total Members</div>
+                      <div className="text-2xl font-bold">
+                        {clubMetrics.members}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Total Members
+                      </div>
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">+{clubMetrics.memberGrowth}</span>
+                      <span className="text-sm">
+                        +{clubMetrics.memberGrowth}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -314,12 +607,18 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{clubMetrics.eventAttendance}</div>
-                      <div className="text-sm text-gray-500">Avg. Attendance</div>
+                      <div className="text-2xl font-bold">
+                        {clubMetrics.eventAttendance}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Avg. Attendance
+                      </div>
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">{clubMetrics.attendanceRate}%</span>
+                      <span className="text-sm">
+                        {clubMetrics.attendanceRate}%
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -329,12 +628,18 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{clubMetrics.profileViews}</div>
-                      <div className="text-sm text-gray-500">Profile Views</div>
+                      <div className="text-2xl font-bold">
+                        {clubMetrics.profileViews}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Profile Views
+                      </div>
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">+{clubMetrics.profileGrowth}%</span>
+                      <span className="text-sm">
+                        +{clubMetrics.profileGrowth}%
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -344,7 +649,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{clubMetrics.engagementScore}%</div>
+                      <div className="text-2xl font-bold">
+                        {clubMetrics.engagementScore}%
+                      </div>
                       <div className="text-sm text-gray-500">Engagement</div>
                     </div>
                     <Target className="w-6 h-6 text-[#012169]" />
@@ -360,14 +667,22 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recentActivity.map(activity => (
-                    <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50">
+                  {recentActivity.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50"
+                    >
                       {getActivityIcon(activity.type)}
                       <div className="flex-1">
                         <div className="text-sm">
-                          <span className="font-medium">{activity.user}</span> {activity.action}
+                          <span className="font-medium">
+                            {activity.user}
+                          </span>{" "}
+                          {activity.action}
                         </div>
-                        <div className="text-xs text-gray-500">{activity.time}</div>
+                        <div className="text-xs text-gray-500">
+                          {activity.time}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -382,40 +697,40 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <CardTitle>Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button 
-                    className="w-full justify-start" 
+                  <Button
+                    className="w-full justify-start"
                     variant="outline"
                     onClick={() => setSelectedTab("events")}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Event
                   </Button>
-                  <Button 
-                    className="w-full justify-start" 
+                  <Button
+                    className="w-full justify-start"
                     variant="outline"
                     onClick={() => setSelectedTab("profile")}
                   >
                     <Edit className="w-4 h-4 mr-2" />
                     Update Club Profile
                   </Button>
-                  <Button 
-                    className="w-full justify-start" 
+                  <Button
+                    className="w-full justify-start"
                     variant="outline"
                     onClick={() => setShowAnnouncementModal(true)}
                   >
                     <Mail className="w-4 h-4 mr-2" />
                     Send Announcement
                   </Button>
-                  <Button 
-                    className="w-full justify-start" 
+                  <Button
+                    className="w-full justify-start"
                     variant="outline"
                     onClick={() => setSelectedTab("members")}
                   >
                     <Users className="w-4 h-4 mr-2" />
                     Manage Members
                   </Button>
-                  <Button 
-                    className="w-full justify-start" 
+                  <Button
+                    className="w-full justify-start"
                     variant="outline"
                     onClick={() => setSelectedTab("analytics")}
                   >
@@ -437,7 +752,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               </Button>
             </div>
 
-            {/* Quick Create Event */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Create Event</CardTitle>
@@ -463,15 +777,17 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               </CardContent>
             </Card>
 
-            {/* Upcoming Events */}
             <Card>
               <CardHeader>
                 <CardTitle>Upcoming Events</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {upcomingEvents.map(event => (
-                    <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  {upcomingEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <h4 className="font-medium">{event.name}</h4>
@@ -485,9 +801,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                         <div className="text-sm text-gray-500">
                           {event.registered}/{event.capacity} registered
                         </div>
-                        <Progress 
-                          value={(event.registered / event.capacity) * 100} 
-                          className="w-48 h-2" 
+                        <Progress
+                          value={(event.registered / event.capacity) * 100}
+                          className="w-48 h-2"
                         />
                       </div>
                       <div className="flex space-x-2">
@@ -511,7 +827,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           <TabsContent value="members" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Member Management</h2>
-              <Button>
+              <Button onClick={() => setShowInviteMemberDialog(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Invite Members
               </Button>
@@ -521,9 +837,13 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
-                    <div className="text-3xl font-bold text-[#012169]">{clubMetrics.members}</div>
+                    <div className="text-3xl font-bold text-[#012169]">
+                      {members.length}
+                    </div>
                     <div className="text-sm text-gray-500">Total Members</div>
-                    <div className="text-xs text-green-600">+{clubMetrics.memberGrowth} this month</div>
+                    <div className="text-xs text-green-600">
+                      +{clubMetrics.memberGrowth} this month
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -531,9 +851,17 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
-                    <div className="text-3xl font-bold text-green-600">15</div>
-                    <div className="text-sm text-gray-500">New This Month</div>
-                    <div className="text-xs text-gray-500">8% growth rate</div>
+                    <div className="text-3xl font-bold text-purple-600">
+                      {
+                        members.filter(
+                          (m) =>
+                            m.position === "officer" ||
+                            m.position === "president",
+                        ).length
+                      }
+                    </div>
+                    <div className="text-sm text-gray-500">Officers</div>
+                    <div className="text-xs text-gray-500">Leadership team</div>
                   </div>
                 </CardContent>
               </Card>
@@ -541,13 +869,81 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
-                    <div className="text-3xl font-bold text-blue-600">{clubMetrics.attendanceRate}%</div>
-                    <div className="text-sm text-gray-500">Avg. Attendance</div>
-                    <div className="text-xs text-green-600">+3% vs last month</div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {clubMetrics.attendanceRate}%
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Avg. Attendance
+                    </div>
+                    <div className="text-xs text-green-600">
+                      +3% vs last month
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Member List</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Position</TableHead>
+                      <TableHead>Join Date</TableHead>
+                      <TableHead>Events Attended</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {members.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">
+                          {member.name}
+                        </TableCell>
+                        <TableCell>{member.email}</TableCell>
+                        <TableCell>{getPositionBadge(member.position)}</TableCell>
+                        <TableCell>
+                          {new Date(member.joinDate).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            },
+                          )}
+                        </TableCell>
+                        <TableCell>{member.eventsAttended}</TableCell>
+                        <TableCell className="text-right">
+                          {member.position !== "president" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleKickMember(member)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <UserX className="w-4 h-4 mr-1" />
+                              Kick
+                            </Button>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-xs text-gray-400"
+                            >
+                              Protected
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -574,7 +970,116 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </Card>
           </TabsContent>
 
-          {/* Profile Tab */}
+          {/* Org Chart Tab */}
+          <TabsContent value="orgchart" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Organization Chart</h2>
+              <Badge variant="outline" className="text-blue-600">
+                Leadership Structure
+              </Badge>
+            </div>
+
+            <Card>
+              <CardContent className="p-8">
+                <div className="flex flex-col items-center space-y-8">
+                  {/* President */}
+                  {members
+                    .filter((m) => m.position === "president")
+                    .map((president) => (
+                      <div
+                        key={president.id}
+                        className="flex flex-col items-center"
+                      >
+                        <div className="w-64 p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-600 rounded-lg shadow-lg">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white">
+                              <Users className="w-6 h-6" />
+                            </div>
+                            <Badge className="bg-purple-600">President</Badge>
+                          </div>
+                          <h3 className="font-bold text-lg text-gray-900">
+                            {president.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 break-all">
+                            {president.email}
+                          </p>
+                        </div>
+
+                        <ArrowDown className="w-6 h-6 text-gray-400 my-4" />
+                      </div>
+                    ))}
+
+                  {/* Officers */}
+                  <div className="grid md:grid-cols-3 gap-8">
+                    {members
+                      .filter((m) => m.position === "officer")
+                      .map((officer) => (
+                        <div
+                          key={officer.id}
+                          className="flex flex-col items-center"
+                        >
+                          <div className="w-56 p-5 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 rounded-lg shadow-md">
+                            <div className="flex items-center space-x-2 mb-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                                <Users className="w-5 h-5" />
+                              </div>
+                              <Badge className="bg-blue-600">Officer</Badge>
+                            </div>
+                            <h3 className="font-semibold text-gray-900">
+                              {officer.name}
+                            </h3>
+                            <p className="text-sm text-gray-600 break-all">
+                              {officer.email}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* Summary */}
+                  <div className="w-full max-w-2xl mt-8 p-6 bg-gray-50 rounded-lg border">
+                    <h4 className="font-semibold text-gray-900 mb-4">
+                      Leadership Summary
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-600">
+                          {
+                            members.filter(
+                              (m) => m.position === "president",
+                            ).length
+                          }
+                        </div>
+                        <div className="text-sm text-gray-600">President</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {
+                            members.filter(
+                              (m) => m.position === "officer",
+                            ).length
+                          }
+                        </div>
+                        <div className="text-sm text-gray-600">Officers</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-600">
+                          {
+                            members.filter(
+                              (m) => m.position === "member",
+                            ).length
+                          }
+                        </div>
+                        <div className="text-sm text-gray-600">Members</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Profile Tab (original layout) */}
           <TabsContent value="profile" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Club Profile</h2>
@@ -592,15 +1097,27 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <CardTitle>Basic Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Input placeholder="Club Name" defaultValue="Pre-Medical Society" />
-                  <Textarea 
-                    placeholder="Club Description" 
+                  <Input
+                    placeholder="Club Name"
+                    defaultValue="Pre-Medical Society"
+                  />
+                  <Textarea
+                    placeholder="Club Description"
                     defaultValue="Supporting pre-medical students through MCAT prep, research opportunities, and medical school guidance."
                     rows={4}
                   />
-                  <Input placeholder="Meeting Location" defaultValue="Chemistry Building Room 240" />
-                  <Input placeholder="Meeting Time" defaultValue="Thursdays 6-7:30 PM" />
-                  <Input placeholder="Website URL" defaultValue="https://premed.emory.edu" />
+                  <Input
+                    placeholder="Meeting Location"
+                    defaultValue="Chemistry Building Room 240"
+                  />
+                  <Input
+                    placeholder="Meeting Time"
+                    defaultValue="Thursdays 6-7:30 PM"
+                  />
+                  <Input
+                    placeholder="Website URL"
+                    defaultValue="https://premed.emory.edu"
+                  />
                 </CardContent>
               </Card>
 
@@ -612,7 +1129,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Freshness Score</span>
-                      <span className="font-medium">{clubMetrics.freshnessScore}%</span>
+                      <span className="font-medium">
+                        {clubMetrics.freshnessScore}%
+                      </span>
                     </div>
                     <Progress value={clubMetrics.freshnessScore} />
                   </div>
@@ -628,14 +1147,17 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Contact Verification</span>
-                      <span className="font-medium text-green-600">Verified ✓</span>
+                      <span className="font-medium text-green-600">
+                        Verified ✓
+                      </span>
                     </div>
                   </div>
 
                   <Alert>
                     <Clock className="w-4 h-4" />
                     <AlertDescription className="text-sm">
-                      Update your profile within 7 days to maintain verification status.
+                      Update your profile within 7 days to maintain verification
+                      status.
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -652,7 +1174,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">Discoverability Index</div>
+                      <div className="text-sm text-gray-500">
+                        Discoverability Index
+                      </div>
                       <div className="text-2xl font-bold">92/100</div>
                     </div>
                     <TrendingUp className="w-5 h-5 text-green-500" />
@@ -664,8 +1188,12 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">Profile Views</div>
-                      <div className="text-2xl font-bold">{clubMetrics.profileViews}</div>
+                      <div className="text-sm text-gray-500">
+                        Profile Views
+                      </div>
+                      <div className="text-2xl font-bold">
+                        {clubMetrics.profileViews}
+                      </div>
                     </div>
                     <Eye className="w-5 h-5 text-blue-500" />
                   </div>
@@ -676,7 +1204,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">Info Requests</div>
+                      <div className="text-sm text-gray-500">
+                        Info Requests
+                      </div>
                       <div className="text-2xl font-bold">23</div>
                     </div>
                     <Mail className="w-5 h-5 text-orange-500" />
@@ -688,7 +1218,9 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">Avg. Rating</div>
+                      <div className="text-sm text-gray-500">
+                        Avg. Rating
+                      </div>
                       <div className="text-2xl font-bold">4.8</div>
                     </div>
                     <Heart className="w-5 h-5 text-red-500" />
@@ -705,7 +1237,10 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <div className="text-center py-12 text-gray-500">
                   <BarChart3 className="w-12 h-12 mx-auto mb-4" />
                   <p>Detailed analytics charts would be displayed here</p>
-                  <p className="text-sm">Track member growth, event attendance, and engagement over time</p>
+                  <p className="text-sm">
+                    Track member growth, event attendance, and engagement over
+                    time
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -713,13 +1248,465 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         </Tabs>
       </div>
 
-      {/* Announcement Modal */}
-      <Dialog open={showAnnouncementModal} onOpenChange={setShowAnnouncementModal}>
+      {/* Kick Member Confirmation Dialog */}
+      <AlertDialog open={showKickDialog} onOpenChange={setShowKickDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove{" "}
+              <span className="font-semibold">{memberToKick?.name}</span> from
+              the club? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMemberToKick(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmKickMember}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Remove Member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Switch Clubs Dialog */}
+      <Dialog open={showSwitchClubDialog} onOpenChange={setShowSwitchClubDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Switch Clubs</DialogTitle>
+            <DialogDescription>
+              Select a club to manage from your registered organizations
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="club-select">Select Club</Label>
+              <Select
+                value={selectedClubToSwitch}
+                onValueChange={setSelectedClubToSwitch}
+              >
+                <SelectTrigger id="club-select">
+                  <SelectValue placeholder="Choose a club" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClubs.map((club) => (
+                    <SelectItem key={club.id} value={club.name}>
+                      <div className="flex items-center space-x-2">
+                        <span>{club.name}</span>
+                        {club.verified && (
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-start space-x-2">
+                <Bell className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-900">Current Club</p>
+                  <p className="text-blue-700 mt-1">{currentClub}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowSwitchClubDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSwitchClub}
+              disabled={!selectedClubToSwitch}
+              className="bg-[#012169] hover:bg-[#001a5c]"
+            >
+              Switch Club
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Register Club Dialog */}
+      <Dialog open={showRegisterClubDialog} onOpenChange={setShowRegisterClubDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Register New Club</DialogTitle>
+            <DialogDescription>
+              Submit your club registration application. All fields are required
+              for verification.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Basic Information</h3>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="club-name">Club Name *</Label>
+                  <Input
+                    id="club-name"
+                    placeholder="e.g., Emory Innovation Society"
+                    value={registrationForm.clubName}
+                    onChange={(e) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        clubName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category *</Label>
+                  <Select
+                    value={registrationForm.category}
+                    onValueChange={(value: any) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        category: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Academic">Academic</SelectItem>
+                      <SelectItem value="Professional">Professional</SelectItem>
+                      <SelectItem value="Cultural">Cultural</SelectItem>
+                      <SelectItem value="Service">Service</SelectItem>
+                      <SelectItem value="Environmental">
+                        Environmental
+                      </SelectItem>
+                      <SelectItem value="Recreation">Recreation</SelectItem>
+                      <SelectItem value="Religious">Religious</SelectItem>
+                      <SelectItem value="Greek Life">Greek Life</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="school">School Affiliation *</Label>
+                <Input
+                  id="school"
+                  placeholder="e.g., Business School, Liberal Arts"
+                  value={registrationForm.school}
+                  onChange={(e) =>
+                    setRegistrationForm({
+                      ...registrationForm,
+                      school: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Club Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Provide a detailed description of your club's mission and activities..."
+                  rows={4}
+                  value={registrationForm.description}
+                  onChange={(e) =>
+                    setRegistrationForm({
+                      ...registrationForm,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* President Information */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                President Information
+              </h3>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="president-name">President Name *</Label>
+                  <Input
+                    id="president-name"
+                    placeholder="Full name"
+                    value={registrationForm.presidentName}
+                    onChange={(e) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        presidentName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="president-email">President Email *</Label>
+                  <Input
+                    id="president-email"
+                    type="email"
+                    placeholder="president@emory.edu"
+                    value={registrationForm.presidentEmail}
+                    onChange={(e) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        presidentEmail: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Meeting Details */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Meeting Details</h3>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="meeting-location">Meeting Location *</Label>
+                  <Input
+                    id="meeting-location"
+                    placeholder="e.g., Chemistry Building Room 240"
+                    value={registrationForm.meetingLocation}
+                    onChange={(e) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        meetingLocation: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meeting-time">Meeting Time *</Label>
+                  <Input
+                    id="meeting-time"
+                    placeholder="e.g., Tuesdays 7:00 PM"
+                    value={registrationForm.meetingTime}
+                    onChange={(e) =>
+                      setRegistrationForm({
+                        ...registrationForm,
+                        meetingTime: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="website">Website (Optional)</Label>
+                <Input
+                  id="website"
+                  placeholder="https://your-club.emory.edu"
+                  value={registrationForm.website}
+                  onChange={(e) =>
+                    setRegistrationForm({
+                      ...registrationForm,
+                      website: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Club Charter Upload */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Club Charter</h3>
+
+              <div className="space-y-2">
+                <Label htmlFor="charter-upload">
+                  Upload Club Charter (PDF) *
+                </Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-[#012169] transition-colors">
+                  <div className="flex flex-col items-center space-y-3">
+                    <Upload className="w-8 h-8 text-gray-400" />
+                    <div className="text-center">
+                      <label
+                        htmlFor="charter-upload"
+                        className="cursor-pointer"
+                      >
+                        <span className="text-sm font-medium text-[#012169] hover:underline">
+                          Click to upload
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {" "}
+                          or drag and drop
+                        </span>
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        PDF file up to 10MB
+                      </p>
+                    </div>
+                    <Input
+                      id="charter-upload"
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </div>
+                  {registrationForm.charterFile && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">
+                          {registrationForm.charterFile.name}
+                        </span>
+                        <CheckCircle className="w-4 h-4 text-green-600 ml-auto" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Alert>
+              <AlertTriangle className="w-4 h-4" />
+              <AlertDescription>
+                Your club registration will be reviewed by Student Affairs
+                within 3-5 business days. You'll receive an email confirmation
+                once approved.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegisterClubDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRegisterClub}
+              disabled={
+                !registrationForm.clubName ||
+                !registrationForm.description ||
+                !registrationForm.school ||
+                !registrationForm.presidentName ||
+                !registrationForm.presidentEmail ||
+                !registrationForm.meetingLocation ||
+                !registrationForm.meetingTime ||
+                !registrationForm.charterFile
+              }
+              className="bg-[#012169] hover:bg-[#001a5c]"
+            >
+              Submit Registration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Member Dialog */}
+      <Dialog open={showInviteMemberDialog} onOpenChange={setShowInviteMemberDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invite New Member</DialogTitle>
+            <DialogDescription>
+              Send an invitation to a new member to join your club.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                Member Information
+              </h3>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="member-name">Member Name *</Label>
+                  <Input
+                    id="member-name"
+                    placeholder="Full name"
+                    value={inviteForm.memberName}
+                    onChange={(e) =>
+                      setInviteForm({
+                        ...inviteForm,
+                        memberName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="member-email">Member Email *</Label>
+                  <Input
+                    id="member-email"
+                    type="email"
+                    placeholder="member@emory.edu"
+                    value={inviteForm.memberEmail}
+                    onChange={(e) =>
+                      setInviteForm({
+                        ...inviteForm,
+                        memberEmail: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="message">Message (Optional)</Label>
+                <Textarea
+                  id="message"
+                  placeholder="Add a personal message to your invitation..."
+                  rows={4}
+                  value={inviteForm.message}
+                  onChange={(e) =>
+                    setInviteForm({
+                      ...inviteForm,
+                      message: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowInviteMemberDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInviteMember}
+              disabled={!inviteForm.memberName || !inviteForm.memberEmail}
+              className="bg-[#012169] hover:bg-[#001a5c]"
+            >
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Announcement Modal (original behavior) */}
+      <Dialog
+        open={showAnnouncementModal}
+        onOpenChange={setShowAnnouncementModal}
+      >
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Send Announcement to Members</DialogTitle>
             <DialogDescription>
-              This announcement will be sent to all {clubMetrics.members} members of Pre-Medical Society via email and in-app notification.
+              This announcement will be sent to all {clubMetrics.members}{" "}
+              members of {currentClub} via email and in-app notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -727,10 +1714,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               <label htmlFor="subject" className="text-sm font-medium">
                 Subject
               </label>
-              <Input
-                id="subject"
-                placeholder="Enter announcement subject..."
-              />
+              <Input id="subject" placeholder="Enter announcement subject..." />
             </div>
             <div className="space-y-2">
               <label htmlFor="message" className="text-sm font-medium">
@@ -752,16 +1736,18 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowAnnouncementModal(false)}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => {
-                // Here you would normally send the announcement to your backend
-                alert(`Announcement sent to ${clubMetrics.members} members!`);
+                // original placeholder behavior
+                alert(
+                  `Announcement sent to ${clubMetrics.members} members!`,
+                );
                 setAnnouncementText("");
                 setShowAnnouncementModal(false);
               }}
