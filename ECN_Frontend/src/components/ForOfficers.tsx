@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type React from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -54,7 +54,6 @@ import {
   Edit,
   Eye,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -88,17 +87,17 @@ interface ClubMetrics {
 interface UpcomingEvent {
   id: string;
   name: string;
-  date: string;
-  time: string;
-  location: string;
-  capacity: number;
+  date: string | null;
+  time: string | null;
+  location: string | null;
+  capacity: number | null;
   registered: number;
-  status: "draft" | "published" | "live";
+  status: "draft" | "published" | "live" | string;
 }
 
 interface RecentActivity {
   id: string;
-  type: "join" | "rsvp" | "inquiry" | "review";
+  type: "join" | "rsvp" | "inquiry" | "review" | string;
   user: string;
   action: string;
   time: string;
@@ -108,12 +107,12 @@ interface Member {
   id: string;
   name: string;
   email: string;
-  position: "president" | "officer" | "member";
+  position: "president" | "officer" | "member" | string;
   joinDate: string;
   eventsAttended: number;
 }
 
-const clubMetrics: ClubMetrics = {
+const clubMetricsFallback: ClubMetrics = {
   members: 180,
   memberGrowth: 12,
   eventAttendance: 89,
@@ -124,7 +123,7 @@ const clubMetrics: ClubMetrics = {
   engagementScore: 85,
 };
 
-const upcomingEvents: UpcomingEvent[] = [
+const upcomingEventsFallback: UpcomingEvent[] = [
   {
     id: "1",
     name: "Medical School Panel",
@@ -157,7 +156,7 @@ const upcomingEvents: UpcomingEvent[] = [
   },
 ];
 
-const recentActivity: RecentActivity[] = [
+const recentActivityFallback: RecentActivity[] = [
   {
     id: "1",
     type: "join",
@@ -279,9 +278,11 @@ const availableClubs = [
 
 interface ForOfficersProps {
   isLoggedIn: boolean;
+  clubId: string;
+  apiBaseUrl?: string; // e.g. "/api"
 }
 
-export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
+export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps) {
   const navigate = useNavigate();
 
   const [selectedTab, setSelectedTab] = useState("dashboard");
@@ -290,7 +291,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
 
-  // NEW state from enhanced version
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [memberToKick, setMemberToKick] = useState<Member | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
@@ -318,6 +318,61 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     memberEmail: "",
     message: "",
   });
+
+  // NEW: state mirroring backend resources
+  const [metrics, setMetrics] = useState<ClubMetrics>(clubMetricsFallback);
+  const [events, setEvents] = useState<UpcomingEvent[]>(upcomingEventsFallback);
+  const [activity, setActivity] =
+    useState<RecentActivity[]>(recentActivityFallback);
+
+  // --------------------
+  // Fetch data from backend
+  // --------------------
+  useEffect(() => {
+    if (!isLoggedIn || !clubId) return;
+
+    const base = apiBaseUrl ?? "/api";
+
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch(`${base}/clubs/${clubId}/metrics`);
+        if (!res.ok) return;
+        const data: ClubMetrics = await res.json();
+        setMetrics(data);
+      } catch (err) {
+        console.error("Failed to load club metrics", err);
+      }
+    };
+
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch(`${base}/clubs/${clubId}/events?upcoming=true`);
+        if (!res.ok) return;
+        const data: UpcomingEvent[] = await res.json();
+        setEvents(data);
+      } catch (err) {
+        console.error("Failed to load club events", err);
+      }
+    };
+
+    const fetchMembers = async () => {
+      try {
+        const res = await fetch(`${base}/clubs/${clubId}/members`);
+        if (!res.ok) return;
+        const data: Member[] = await res.json();
+        setMembers(data);
+      } catch (err) {
+        console.error("Failed to load club members", err);
+      }
+    };
+
+    // Optional: later you can add /clubs/:id/activity
+    // const fetchActivity = async () => { ... }
+
+    fetchMetrics();
+    fetchEvents();
+    fetchMembers();
+  }, [isLoggedIn, clubId, apiBaseUrl]);
 
   // --------------------
   // Auth gate (original)
@@ -460,7 +515,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   };
 
   const handleRegisterClub = () => {
-    // original file had no backend calls; keep this as a placeholder
+    // placeholder, backend integration handled elsewhere
     console.log("Registering club:", registrationForm);
     setRegistrationForm({
       clubName: "",
@@ -523,7 +578,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             <div className="flex items-center space-x-3">
               <div className="text-right">
                 <div className="text-2xl font-bold text-[#012169]">
-                  {clubMetrics.freshnessScore}%
+                  {metrics.freshnessScore}%
                 </div>
                 <div className="text-sm text-gray-500">Freshness Score</div>
               </div>
@@ -587,7 +642,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-2xl font-bold">
-                        {clubMetrics.members}
+                        {metrics.members}
                       </div>
                       <div className="text-sm text-gray-500">
                         Total Members
@@ -596,7 +651,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
                       <span className="text-sm">
-                        +{clubMetrics.memberGrowth}
+                        +{metrics.memberGrowth}
                       </span>
                     </div>
                   </div>
@@ -608,7 +663,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-2xl font-bold">
-                        {clubMetrics.eventAttendance}
+                        {metrics.eventAttendance}
                       </div>
                       <div className="text-sm text-gray-500">
                         Avg. Attendance
@@ -617,7 +672,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
                       <span className="text-sm">
-                        {clubMetrics.attendanceRate}%
+                        {metrics.attendanceRate}%
                       </span>
                     </div>
                   </div>
@@ -629,7 +684,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-2xl font-bold">
-                        {clubMetrics.profileViews}
+                        {metrics.profileViews}
                       </div>
                       <div className="text-sm text-gray-500">
                         Profile Views
@@ -638,7 +693,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
                       <span className="text-sm">
-                        +{clubMetrics.profileGrowth}%
+                        +{metrics.profileGrowth}%
                       </span>
                     </div>
                   </div>
@@ -650,7 +705,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-2xl font-bold">
-                        {clubMetrics.engagementScore}%
+                        {metrics.engagementScore}%
                       </div>
                       <div className="text-sm text-gray-500">Engagement</div>
                     </div>
@@ -667,21 +722,21 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recentActivity.map((activity) => (
+                  {activity.map((activityItem) => (
                     <div
-                      key={activity.id}
+                      key={activityItem.id}
                       className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50"
                     >
-                      {getActivityIcon(activity.type)}
+                      {getActivityIcon(activityItem.type)}
                       <div className="flex-1">
                         <div className="text-sm">
                           <span className="font-medium">
-                            {activity.user}
+                            {activityItem.user}
                           </span>{" "}
-                          {activity.action}
+                          {activityItem.action}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {activity.time}
+                          {activityItem.time}
                         </div>
                       </div>
                     </div>
@@ -783,7 +838,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {upcomingEvents.map((event) => (
+                  {events.map((event) => (
                     <div
                       key={event.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -791,20 +846,29 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <h4 className="font-medium">{event.name}</h4>
-                          <Badge className={getStatusColor(event.status)}>
-                            {event.status}
-                          </Badge>
+                          {event.status && (
+                            <Badge className={getStatusColor(event.status)}>
+                              {event.status}
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-sm text-gray-600">
-                          {event.date} at {event.time} • {event.location}
+                          {event.date ?? "TBD"}{" "}
+                          {event.time ? `at ${event.time}` : ""} •{" "}
+                          {event.location ?? "Location TBA"}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {event.registered}/{event.capacity} registered
+                          {event.registered}
+                          {event.capacity
+                            ? `/${event.capacity} registered`
+                            : " registered"}
                         </div>
-                        <Progress
-                          value={(event.registered / event.capacity) * 100}
-                          className="w-48 h-2"
-                        />
+                        {event.capacity && event.capacity > 0 && (
+                          <Progress
+                            value={(event.registered / event.capacity) * 100}
+                            className="w-48 h-2"
+                          />
+                        )}
                       </div>
                       <div className="flex space-x-2">
                         <Button size="sm" variant="outline">
@@ -842,7 +906,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     </div>
                     <div className="text-sm text-gray-500">Total Members</div>
                     <div className="text-xs text-green-600">
-                      +{clubMetrics.memberGrowth} this month
+                      +{metrics.memberGrowth} this month
                     </div>
                   </div>
                 </CardContent>
@@ -870,7 +934,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
                     <div className="text-3xl font-bold text-blue-600">
-                      {clubMetrics.attendanceRate}%
+                      {metrics.attendanceRate}%
                     </div>
                     <div className="text-sm text-gray-500">
                       Avg. Attendance
@@ -908,14 +972,16 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                         <TableCell>{member.email}</TableCell>
                         <TableCell>{getPositionBadge(member.position)}</TableCell>
                         <TableCell>
-                          {new Date(member.joinDate).toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            },
-                          )}
+                          {member.joinDate
+                            ? new Date(member.joinDate).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )
+                            : "—"}
                         </TableCell>
                         <TableCell>{member.eventsAttended}</TableCell>
                         <TableCell className="text-right">
@@ -1079,7 +1145,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </Card>
           </TabsContent>
 
-          {/* Profile Tab (original layout) */}
+          {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Club Profile</h2>
@@ -1130,10 +1196,10 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                     <div className="flex justify-between text-sm">
                       <span>Freshness Score</span>
                       <span className="font-medium">
-                        {clubMetrics.freshnessScore}%
+                        {metrics.freshnessScore}%
                       </span>
                     </div>
-                    <Progress value={clubMetrics.freshnessScore} />
+                    <Progress value={metrics.freshnessScore} />
                   </div>
 
                   <div className="space-y-2">
@@ -1192,7 +1258,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                         Profile Views
                       </div>
                       <div className="text-2xl font-bold">
-                        {clubMetrics.profileViews}
+                        {metrics.profileViews}
                       </div>
                     </div>
                     <Eye className="w-5 h-5 text-blue-500" />
@@ -1696,7 +1762,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Announcement Modal (original behavior) */}
+      {/* Announcement Modal */}
       <Dialog
         open={showAnnouncementModal}
         onOpenChange={setShowAnnouncementModal}
@@ -1705,7 +1771,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
           <DialogHeader>
             <DialogTitle>Send Announcement to Members</DialogTitle>
             <DialogDescription>
-              This announcement will be sent to all {clubMetrics.members}{" "}
+              This announcement will be sent to all {metrics.members}{" "}
               members of {currentClub} via email and in-app notification.
             </DialogDescription>
           </DialogHeader>
@@ -1744,10 +1810,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </Button>
             <Button
               onClick={() => {
-                // original placeholder behavior
-                alert(
-                  `Announcement sent to ${clubMetrics.members} members!`,
-                );
+                alert(`Announcement sent to ${metrics.members} members!`);
                 setAnnouncementText("");
                 setShowAnnouncementModal(false);
               }}
