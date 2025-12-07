@@ -187,6 +187,7 @@ class OfficerRole(Base):
     club_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     role: Mapped[str] = mapped_column(OfficerRoleEnum, nullable=False)
+    hierarchy_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assigned_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
