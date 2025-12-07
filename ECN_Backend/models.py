@@ -84,7 +84,8 @@ class Club(Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     last_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     update_recency_badge: Mapped[str | None] = mapped_column(String)
-
+    org_chart_schema: Mapped[str | None] = mapped_column(String)
+    
     officers: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, server_default=text("'{}'")
     )
