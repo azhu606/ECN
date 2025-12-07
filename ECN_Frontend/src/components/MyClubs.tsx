@@ -21,7 +21,8 @@ import {
   Lock,
   ShieldAlert
 } from "lucide-react";
-
+import React from "react";
+import { useAuth } from "../context/AuthContext";
 interface UserClub {
   id: string;
   name: string;
@@ -147,13 +148,15 @@ const notifications: Notification[] = [
   }
 ];
 
-interface MyClubsProps {
-  isLoggedIn: boolean;
-}
-
-export function MyClubs({ isLoggedIn }: MyClubsProps) {
+export function MyClubs() {
   const navigate = useNavigate();
-  const [unreadCount] = useState(notifications.filter(n => !n.read).length);
+  const { user, isLoggedIn } = useAuth();   // 👈 pull from AuthContext
+  const [unreadCount] = useState(
+    notifications.filter((n) => !n.read).length
+  );
+
+  // TEMP: show UUID here too if you want to verify
+  console.log("USER FROM AUTH (MyClubs):", user);
 
   // If not logged in, show authentication prompt
   if (!isLoggedIn) {
@@ -161,353 +164,26 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
         <Card className="max-w-md w-full shadow-2xl">
           <CardContent className="p-8 text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 bg-[#012169] rounded-full flex items-center justify-center">
-                <Lock className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Sign In to View Your Clubs
-              </h2>
-              <p className="text-gray-600">
-                Access your personalized club dashboard, track events, and stay connected with your communities.
-              </p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-              <div className="flex items-start space-x-2">
-                <ShieldAlert className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-left text-blue-900">
-                  <p className="font-semibold">My Clubs Features:</p>
-                  <ul className="mt-2 space-y-1 text-blue-700">
-                    <li>• View all your joined clubs in one place</li>
-                    <li>• Get notifications about upcoming events</li>
-                    <li>• Track your engagement and activity</li>
-                    <li>• Manage your club memberships</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <Button 
-                onClick={() => navigate("/signin")}
-                className="w-full bg-[#012169] hover:bg-[#0a2e6e] text-white h-11 text-base font-semibold"
-              >
-                Sign In with NetID
-              </Button>
-              
-              <Button 
-                onClick={() => navigate("/discover")}
-                variant="outline"
-                className="w-full h-11 text-base"
-              >
-                Browse Clubs as Guest
-              </Button>
-            </div>
-
-            <p className="text-xs text-gray-500">
-              New to ECN? Sign in with your Emory NetID to get started.
-            </p>
+            {/* ... your existing not-logged-in UI unchanged ... */}
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "President": return "bg-purple-100 text-purple-800";
-      case "Officer": return "bg-blue-100 text-blue-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "event": return <Calendar className="w-4 h-4 text-blue-500" />;
-      case "announcement": return <MessageSquare className="w-4 h-4 text-green-500" />;
-      case "update": return <TrendingUp className="w-4 h-4 text-orange-500" />;
-      default: return <Bell className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
+  // rest of your existing MyClubs JSX stays the same
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* optional debug display */}
+      <p className="px-4 pt-4 text-xs text-red-600 font-mono">
+        Logged-in UUID: {user?.id}
+      </p>
+
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Clubs</h1>
-              <p className="text-gray-600 mt-2">Manage your club memberships and stay updated</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-[#012169]">{userClubs.length}</div>
-                <div className="text-sm text-gray-500">Active Memberships</div>
-              </div>
-              <Button>
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="clubs">My Clubs ({userClubs.length})</TabsTrigger>
-            <TabsTrigger value="events">Events</TabsTrigger>
-            <TabsTrigger value="notifications" className="relative">
-              Notifications
-              {unreadCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 px-1 py-0 text-xs min-w-[1.25rem] h-5">
-                  {unreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Quick Stats */}
-            <div className="grid md:grid-cols-4 gap-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-5 h-5 text-[#012169]" />
-                    <div>
-                      <div className="text-2xl font-bold">{userClubs.length}</div>
-                      <div className="text-sm text-gray-500">Clubs Joined</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="w-5 h-5 text-green-600" />
-                    <div>
-                      <div className="text-2xl font-bold">3</div>
-                      <div className="text-sm text-gray-500">Upcoming Events</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Star className="w-5 h-5 text-yellow-500" />
-                    <div>
-                      <div className="text-2xl font-bold">1</div>
-                      <div className="text-sm text-gray-500">Leadership Role</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <div className="text-2xl font-bold">75%</div>
-                      <div className="text-sm text-gray-500">Avg Engagement</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {userClubs.flatMap(club => 
-                    club.recentActivity.map((activity, idx) => (
-                      <div key={`${club.id}-${idx}`} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50">
-                        {getActivityIcon(activity.type)}
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{activity.title}</div>
-                          <div className="text-xs text-gray-500">{club.name} • {activity.time}</div>
-                        </div>
-                      </div>
-                    ))
-                  ).slice(0, 5)}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Events</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {userClubs.filter(club => club.nextEvent).map(club => (
-                    <div key={club.id} className="flex items-center justify-between p-3 rounded-lg bg-blue-50">
-                      <div>
-                        <div className="font-medium">{club.nextEvent!.name}</div>
-                        <div className="text-sm text-gray-600">{club.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {club.nextEvent!.date} at {club.nextEvent!.time}
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        <Heart className="w-3 h-3 mr-1" />
-                        RSVP
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Clubs Tab */}
-          <TabsContent value="clubs" className="space-y-6">
-            <div className="grid gap-6">
-              {userClubs.map(club => (
-                <Card key={club.id} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <Avatar className="w-12 h-12">
-                          <AvatarFallback className="bg-[#012169] text-white">
-                            {club.name.substring(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-xl font-semibold">{club.name}</h3>
-                            {club.verified && <CheckCircle className="w-5 h-5 text-green-500" />}
-                          </div>
-                          
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <Badge className={getRoleColor(club.role)}>{club.role}</Badge>
-                            <span>Joined {new Date(club.joinDate).toLocaleDateString()}</span>
-                            <span>{club.memberCount} members</span>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span>Engagement Score</span>
-                              <span className="font-medium">{club.engagement}%</span>
-                            </div>
-                            <Progress value={club.engagement} className="w-48" />
-                          </div>
-
-                          {club.nextEvent && (
-                            <div className="bg-blue-50 p-3 rounded-md">
-                              <div className="text-sm font-medium text-blue-900">Next Event</div>
-                              <div className="text-sm text-blue-700">{club.nextEvent.name}</div>
-                              <div className="text-xs text-blue-600">
-                                {club.nextEvent.date} at {club.nextEvent.time}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col space-y-2">
-                        <Button size="sm">Manage</Button>
-                        <Button size="sm" variant="outline">View Details</Button>
-                        {club.role === "Member" && (
-                          <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
-                            Leave Club
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Events Tab */}
-          <TabsContent value="events" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Upcoming Events</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {userClubs.filter(club => club.nextEvent).map(club => (
-                    <div key={club.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <Calendar className="w-5 h-5 text-[#012169]" />
-                        <div>
-                          <div className="font-medium">{club.nextEvent!.name}</div>
-                          <div className="text-sm text-gray-600">{club.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {club.nextEvent!.date} at {club.nextEvent!.time}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm">View Details</Button>
-                        <Button size="sm" variant="outline">
-                          <Heart className="w-3 h-3 mr-1" />
-                          RSVP
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {notifications.map(notification => (
-                    <div key={notification.id} 
-                         className={`p-4 border rounded-lg ${notification.read ? 'bg-gray-50' : 'bg-blue-50 border-blue-200'}`}>
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline">{notification.club}</Badge>
-                            <Badge className="text-xs">{notification.type}</Badge>
-                            {!notification.read && (
-                              <Badge className="bg-blue-600 text-xs">New</Badge>
-                            )}
-                          </div>
-                          <h4 className="font-medium">{notification.title}</h4>
-                          <p className="text-sm text-gray-600">{notification.message}</p>
-                          <p className="text-xs text-gray-500">{notification.time}</p>
-                        </div>
-                        {!notification.read && (
-                          <Button size="sm" variant="ghost">
-                            Mark as Read
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+      {/* ...everything you already have below unchanged... */}
     </div>
   );
 }
+
+
+

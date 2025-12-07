@@ -23,6 +23,8 @@ import {
   ChevronRight,
   Download
 } from "lucide-react";
+import React from "react";
+
 
 interface Event {
   id: string;
@@ -270,7 +272,7 @@ export function Events() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [localRSVPed, setLocalRSVPed] = useState<{ [id: string]: boolean }>({});
   const [events, setEvents] = useState<Event[]>(initialEvents);
-  const { user, anonymousId } = useAuth();
+
 
   // RSVP and Share handlers
   const handleRSVP = async (eventId: string) => {
@@ -279,7 +281,10 @@ export function Events() {
   // Use real user id from Auth context if available, otherwise use persistent anonymous id.
   // Note: NetID login integration is not available yet in this repo (waiting on another contributor),
   // so anonymousId will be used until a logged-in user exists.
-  const userIdToSend = user?.id || anonymousId;
+  const { user } = useAuth();   // <-- get user from AuthContext
+
+  const userIdToSend = user?.id 
+
 
       const res = await fetch(`${API_URL}/rsvps`, { // currently using localhost for test purposes 
         method: 'POST',

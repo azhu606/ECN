@@ -1,13 +1,20 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { useAuth } from "../context/AuthContext";
+
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "./ui/tabs";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
-import { Alert, AlertDescription } from "./ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -17,30 +24,39 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import {
-  BarChart3,
+  Alert,
+  AlertDescription,
+} from "./ui/alert";
+
+import {
   Users,
   Calendar,
+  Mail,
+  MessageSquare,
+  Bell,
+  CheckCircle,
   Settings,
+  TrendingUp,
+  Target,
   Plus,
   Edit,
   Eye,
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Mail,
-  Bell,
-  Target,
   Award,
   Heart,
-  MessageSquare,
   Lock,
   ShieldAlert,
+  Clock,
+  BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 
-const PLACEHOLDER_CLUB_ID = "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+// For now we are just pointing at a single seeded club.
+// Later this should come from the logged-in officer's club.
+const PLACEHOLDER_CLUB_ID = 1;
+
+// -------- Types --------
 
 interface ClubMetrics {
   members: number;
@@ -54,110 +70,74 @@ interface ClubMetrics {
 }
 
 interface ClubProfile {
-  id: string;
+  id: number;
   name: string;
   description: string | null;
-  purpose: string | null;
-  activities: string | null;
-  mediaUrls: string[];
-  contactEmail: string | null;
-  contactPhone: string | null;
-  requestInfoFormUrl: string | null;
-  status: "active" | "inactive" | "delisted";
+  purpose?: string | null;
+  activities?: string | null;
+  mediaUrls?: string[] | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  requestInfoFormUrl?: string | null;
+  status: string;
   verified: boolean;
-  lastUpdatedAt: string | null; // ISO string
-  updateRecencyBadge: string | null;
+  lastUpdatedAt?: string | null;
 }
 
-interface UpcomingEvent {
-  id: string;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  capacity: number;
-  registered: number;
-  status: "draft" | "published" | "live";
-}
-
-interface RecentActivity {
-  id: string;
-  type: "join" | "rsvp" | "inquiry" | "review";
-  user: string;
-  action: string;
-  time: string;
-}
-
-const upcomingEvents: UpcomingEvent[] = [
+// Dummy front-end activity/events for now
+const recentActivity = [
   {
     id: "1",
-    name: "Medical School Panel",
-    date: "2024-10-20",
-    time: "7:00 PM",
-    location: "Chemistry Building Room 240",
-    capacity: 100,
-    registered: 78,
-    status: "published",
-  },
-  {
-    id: "2",
-    name: "MCAT Study Group",
-    date: "2024-10-22",
-    time: "6:00 PM",
-    location: "Library Study Room 3A",
-    capacity: 20,
-    registered: 15,
-    status: "published",
-  },
-  {
-    id: "3",
-    name: "Research Symposium",
-    date: "2024-10-28",
-    time: "2:00 PM",
-    location: "Rollins School Auditorium",
-    capacity: 200,
-    registered: 45,
-    status: "draft",
-  },
-];
-
-const recentActivity: RecentActivity[] = [
-  {
-    id: "1",
-    type: "join",
-    user: "Sarah Chen",
-    action: "joined the club",
+    type: "join" as const,
+    user: "Student 1",
+    action: "joined your club",
     time: "2 hours ago",
   },
   {
     id: "2",
-    type: "rsvp",
-    user: "Michael Rodriguez",
-    action: "RSVP'd to Medical School Panel",
+    type: "rsvp" as const,
+    user: "Student 2",
+    action: "RSVP’d to your event",
     time: "4 hours ago",
   },
   {
     id: "3",
-    type: "inquiry",
-    user: "Emily Johnson",
-    action: "sent an info request",
-    time: "6 hours ago",
-  },
-  {
-    id: "4",
-    type: "review",
-    user: "David Park",
-    action: "left a 5-star review",
+    type: "review" as const,
+    user: "Student 3",
+    action: "left a new review",
     time: "1 day ago",
   },
 ];
 
-interface ForOfficersProps {
-  isLoggedIn: boolean;
-}
+const upcomingEvents = [
+  {
+    id: "1",
+    name: "General Body Meeting",
+    date: "Oct 20",
+    time: "7:00 PM",
+    location: "Goizueta Business School",
+    status: "live" as const,
+    registered: 45,
+    capacity: 80,
+  },
+  {
+    id: "2",
+    name: "Recruiting Workshop",
+    date: "Oct 25",
+    time: "6:00 PM",
+    location: "White Hall",
+    status: "draft" as const,
+    registered: 10,
+    capacity: 60,
+  },
+];
 
-export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
+export function ForOfficers() {
   const navigate = useNavigate();
+  const { user, isLoggedIn } = useAuth();
+
+  console.log("AUTH USER IN ForOfficers:", user);
+
   const [selectedTab, setSelectedTab] = useState("dashboard");
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
@@ -175,7 +155,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState<boolean>(false);
 
-  // Fetch metrics
+  // ---------- Fetch metrics ----------
   useEffect(() => {
     async function fetchMetrics() {
       try {
@@ -201,7 +181,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     fetchMetrics();
   }, []);
 
-  // Fetch profile
+  // ---------- Fetch profile ----------
   useEffect(() => {
     async function fetchProfile() {
       try {
@@ -293,7 +273,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     }
   };
 
-  // If not logged in, show authentication prompt
+  // ---------- Auth gate ----------
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
@@ -322,7 +302,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   <p className="font-semibold">Officer Dashboard Features:</p>
                   <ul className="mt-2 space-y-1 text-blue-700">
                     <li>• Manage club events and announcements</li>
-                    <li>• Track member engagement & analytics</li>
+                    <li>• Track member engagement and analytics</li>
                     <li>• Update club profile information</li>
                     <li>• View and respond to member inquiries</li>
                   </ul>
@@ -348,7 +328,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             </div>
 
             <p className="text-xs text-gray-500">
-              Don't have officer access? Contact your club president or visit
+              Do not have officer access? Contact your club president or visit
               the main site to join clubs.
             </p>
           </CardContent>
@@ -357,6 +337,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     );
   }
 
+  // ---------- Helpers ----------
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "join":
@@ -385,8 +366,14 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
     }
   };
 
+  // ---------- UI ----------
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* TEMP: show UUID so you can verify login */}
+      <div className="px-4 pt-4 text-xs text-red-600 font-mono">
+        Logged-in UUID: {user?.id}
+      </div>
+
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -459,7 +446,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
-            {/* Freshness Alert */}
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
@@ -541,7 +527,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               </Card>
             </div>
 
-            {/* Recent Activity & Quick Actions */}
+            {/* Recent Activity and Quick Actions */}
             <div className="grid lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -631,7 +617,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               </Button>
             </div>
 
-            {/* Quick Create Event */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Create Event</CardTitle>
@@ -651,13 +636,12 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                   onChange={(e) => setNewEventDescription(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <Button>Create & Publish</Button>
+                  <Button>Create and Publish</Button>
                   <Button variant="outline">Save as Draft</Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Upcoming Events */}
             <Card>
               <CardHeader>
                 <CardTitle>Upcoming Events</CardTitle>
@@ -729,7 +713,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* CHANGED: card reflects backend growth instead of fixed 15/8% */}
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
@@ -829,7 +812,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
 
                   {clubProfile && (
                     <>
-                      {/* Only DB-backed fields kept; meeting time/location/website removed */}
                       <Input
                         placeholder="Club Name"
                         value={clubProfile.name}
@@ -970,7 +952,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             )}
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* CHANGED: shows backend engagementScore instead of fake Discoverability Index */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -987,7 +968,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Profile Views from backend */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1005,7 +985,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Attendance from backend (replaces fake Info Requests) */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1025,7 +1004,6 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
                 </CardContent>
               </Card>
 
-              {/* Members from backend (replaces fake Avg Rating) */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1051,10 +1029,10 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
               <CardContent>
                 <div className="text-center py-12 text-gray-500">
                   <BarChart3 className="w-12 h-12 mx-auto mb-4" />
-                  <p>Detailed analytics charts would be displayed here</p>
+                  <p>Detailed analytics charts would be displayed here.</p>
                   <p className="text-sm">
                     Track member growth, event attendance, and engagement over
-                    time
+                    time.
                   </p>
                 </div>
               </CardContent>
@@ -1099,7 +1077,7 @@ export function ForOfficers({ isLoggedIn }: ForOfficersProps) {
             <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
               <Bell className="w-4 h-4 text-blue-600" />
               <span className="text-sm text-blue-900">
-                Members will receive both email and push notifications
+                Members will receive both email and push notifications.
               </span>
             </div>
           </div>

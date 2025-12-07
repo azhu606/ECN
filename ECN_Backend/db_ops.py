@@ -19,9 +19,16 @@ from models import (
 # ------------------------------------------------------------------
 # Engine / Session
 # ------------------------------------------------------------------
-DB_URL = "postgresql+psycopg2://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+# Prefer env var in case you change the DB later
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg2://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+)
+
 engine = create_engine(DB_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
 
 
 @contextmanager

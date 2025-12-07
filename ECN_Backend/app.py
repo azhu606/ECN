@@ -1,32 +1,71 @@
-from flask import Flask
-from routes import api_bp  # your blueprint file
-from db_ops import create_all  # helper to create tables
-import os
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS
+from werkzeug.security import check_password_hash
+from db_ops import get_session
+from models import Student
 
-def create_app():
-    app = Flask(__name__)
+app = Flask(__name__)
 
-    # PostgreSQL connection (no password)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql+psycopg2://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# SECRET for signing cookies
+app.config["SECRET_KEY"] = "super-secret-key-change-me"
 
-    # Register blueprints
-    app.register_blueprint(api_bp, url_prefix="/api")
+# ----- CORS: allow React dev server -----
+CORS(
+    app,
+    resources={r"/api/*": {"origins": ["http://localhost:3000"]}},
+    supports_credentials=True,
+)
 
-    # Health check route
-    @app.get("/api/health")
-    def health():
-        return {"ok": True}
+# ----- SIMPLE HEALTH CHECK -----
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True})
 
-    # Optionally create all tables at startup (for dev use only)
-    with app.app_context():
-        create_all()
 
-    return app
+# ----- LOGIN -----
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.json
+
+    if not data or "email" not in data or "password" not in data:
+        return jsonify({"error": "Missing fields"}), 400
+
+    email = data["email"].strip().lower()
+    password = data["password"]
+
+    session = get_session()
+    user = session.query(Student).filter(Student.email == email).first()
+
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Response payload (uuid/ID + name)
+    resp_data = {
+        "id": str(user.id),        # change to user.uuid if you have that
+        "name": user.name,
+    }
+
+    resp = make_response(jsonify(resp_data))
+    resp.set_cookie(
+        "ecn_session",
+        value=str(user.id),
+        httponly=True,
+        samesite="Lax",
+    )
+
+    return resp
+
+
+# ----- LOGOUT -----
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    resp = make_response(jsonify({"success": True}))
+    resp.set_cookie("ecn_session", "", expires=0)
+    return resp
 
 
 if __name__ == "__main__":
-    app = create_app()
-
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True)

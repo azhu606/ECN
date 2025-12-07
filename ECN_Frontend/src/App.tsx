@@ -1,37 +1,56 @@
-import React, { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { Sidebar } from "./components/Sidebar";
+
 import { Hero } from "./components/Hero";
 import { Features } from "./components/Features";
 import { ClubPreview } from "./components/ClubPreview";
 import { CallToAction } from "./components/CallToAction";
+
 import { DiscoverClubs } from "./components/DiscoverClubs";
 import { Events } from "./components/Events";
 import { MyClubs } from "./components/MyClubs";
 import { ForOfficers } from "./components/ForOfficers";
+
 import SignIn from "./pages/SignIn";
-import { AuthProvider } from "./context/AuthContext";
 import SignUp from "./pages/SignUp";
 import Verification from "./pages/Verification";
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // placeholder true, logging in is buggy
+import { AuthProvider, useAuth } from "./context/AuthContext";
+
+/* ---------------------- Protected Route Wrapper ---------------------- */
+
+function ProtectedRoute({ children }: { children: React.ReactElement }) {
+  const { isLoggedIn } = useAuth();
+
+  if (!isLoggedIn) {
+    return <Navigate to="/signin" replace />;
+  }
+
+  return children;
+}
+
+/* ------------------------------ AppInner ------------------------------ */
+
+function AppInner() {
+  const { isLoggedIn, logout } = useAuth();
 
   return (
-    <AuthProvider>
-      <div className="flex flex-col min-h-screen bg-white">
-        <Header isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+    <div className="flex flex-col min-h-screen bg-white">
 
-        <div className="flex flex-1">
-          {/* Sidebar (only shows when logged in) */}
-          <Sidebar isLoggedIn={isLoggedIn} />
+      {/* Header */}
+      <Header isLoggedIn={isLoggedIn} logout={logout} />
 
-        </div>
+      {/* Layout: Sidebar + Main */}
+      <div className="flex flex-1">
+        <Sidebar isLoggedIn={isLoggedIn} />
 
         <main className="flex-1">
           <Routes>
+            {/* Public Landing Page */}
             <Route
               path="/"
               element={
@@ -44,31 +63,63 @@ export default function App() {
               }
             />
 
-            <Route path="/discover" element={<DiscoverClubs />} />
-            <Route path="/events" element={<Events />} />
+            {/* Auth Pages */}
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/verify" element={<Verification />} />
+
+            {/* Protected Routes */}
+            <Route
+              path="/discover"
+              element={
+                <ProtectedRoute>
+                  <DiscoverClubs />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/events"
+              element={
+                <ProtectedRoute>
+                  <Events />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/myclubs"
-              element={<MyClubs isLoggedIn={isLoggedIn} />}
+              element={
+                <ProtectedRoute>
+                  <MyClubs />
+                </ProtectedRoute>
+              }
             />
 
             <Route
               path="/officers"
-              element={<ForOfficers isLoggedIn={isLoggedIn} />}
+              element={
+                <ProtectedRoute>
+                  <ForOfficers />
+                </ProtectedRoute>
+              }
             />
-
-            <Route
-              path="/signin"
-              element={<SignIn setIsLoggedIn={setIsLoggedIn} />}
-            />
-
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/verify" element={<Verification />} />
           </Routes>
         </main>
-
-        <Footer />
       </div>
+
+      {/* Footer */}
+      <Footer />
+    </div>
+  );
+}
+
+/* ------------------------------- App Root ------------------------------- */
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
     </AuthProvider>
   );
 }

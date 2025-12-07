@@ -1,64 +1,69 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
-type User = {
+export interface User {
   id: string;
   name?: string;
-};
+}
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  anonymousId: string;
-  setUser: (u: User | null) => void;
-};
+  isLoggedIn: boolean;
+  
+  // functions you MUST expose
+  login: (user: User) => void;
+  logout: () => void;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [anonymousId, setAnonymousId] = useState<string>(() => {
-    try {
-      const existing = localStorage.getItem('ecn_anonymous_id');
-      if (existing) return existing;
-      // prefer crypto.randomUUID when available
-      const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `anon_${Math.random().toString(36).slice(2, 10)}`;
-      localStorage.setItem('ecn_anonymous_id', id);
-      return id;
-    } catch (e) {
-      return `anon_${Math.random().toString(36).slice(2, 10)}`;
-    }
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Load user from localStorage on page load
   useEffect(() => {
-    // Placeholder: try to hydrate user from a global injected value or localStorage
     try {
-      const ls = localStorage.getItem('ecn_user');
-      if (ls) {
-        setUser(JSON.parse(ls));
-        return;
+      const stored = localStorage.getItem("ecn_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setUser(parsed);
+        setIsLoggedIn(true);
       }
-
-      // Some backends may inject window.__ECN_USER__ at build/runtime
-      const win = window as any;
-      if (win && win.__ECN_USER__) {
-        setUser(win.__ECN_USER__);
-        localStorage.setItem('ecn_user', JSON.stringify(win.__ECN_USER__));
-      }
-    } catch (err) {
-      // ignore
+    } catch {
+      console.warn("Failed to parse stored user");
     }
   }, []);
 
+  const login = (user: User) => {
+    setUser(user);
+    setIsLoggedIn(true);
+    localStorage.setItem("ecn_user", JSON.stringify(user));
+  };
+
+  const logout = () => {
+    setUser(null);
+    setIsLoggedIn(false);
+    localStorage.removeItem("ecn_user");
+  };
+
   return (
-    <AuthContext.Provider value={{ user, anonymousId, setUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoggedIn,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) {
+    throw new Error("useAuth must be used inside <AuthProvider>");
+  }
   return ctx;
-};
-
-export default AuthContext;
+}

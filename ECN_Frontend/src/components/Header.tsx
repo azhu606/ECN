@@ -2,13 +2,14 @@ import React from "react";
 import { Button } from "./ui/button";
 import { Search, Bell, User, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 interface HeaderProps {
   isLoggedIn: boolean;
-  setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
+  logout: () => void; // NEW — from AppInner/AuthContext
 }
 
-export function Header({ isLoggedIn, setIsLoggedIn }: HeaderProps) {
+export function Header({ isLoggedIn, logout }: HeaderProps) {
   const navigate = useNavigate();
 
   const navItems = [
@@ -18,32 +19,26 @@ export function Header({ isLoggedIn, setIsLoggedIn }: HeaderProps) {
     { id: "officers", label: "For Officers", path: "/officers" },
   ];
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    navigate("/");
-  };
-
   return (
     <header className="bg-white border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
+          
           {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => navigate("/")}
-              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-8 h-8 bg-[#012169] text-white rounded flex items-center justify-center font-bold">
-                E
-              </div>
-              <div>
-                <span className="text-lg font-semibold text-gray-900">
-                  Club Nexus
-                </span>
-                <div className="text-xs text-gray-500">Emory University</div>
-              </div>
-            </button>
-          </div>
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-8 h-8 bg-[#012169] text-white rounded flex items-center justify-center font-bold">
+              E
+            </div>
+            <div>
+              <span className="text-lg font-semibold text-gray-900">
+                Club Nexus
+              </span>
+              <div className="text-xs text-gray-500">Emory University</div>
+            </div>
+          </button>
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
@@ -64,14 +59,19 @@ export function Header({ isLoggedIn, setIsLoggedIn }: HeaderProps) {
               <Search className="w-4 h-4 mr-2" />
               Search
             </Button>
+
             <Button variant="ghost" size="sm">
               <Bell className="w-4 h-4" />
             </Button>
 
+            {/* AUTH BUTTONS */}
             {isLoggedIn ? (
               <Button
                 size="sm"
-                onClick={handleLogout}
+                onClick={() => {
+                  logout();
+                  navigate("/");
+                }}
                 className="bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all font-semibold"
               >
                 <LogOut className="w-4 h-4 mr-2" />
