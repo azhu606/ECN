@@ -71,105 +71,22 @@ type ApiClubsResp = {
   total: number;
 };
 
-// ---------------------------------------------------------------------------
-// MOCK DATA FOR UI TESTING (no backend needed)
-// ---------------------------------------------------------------------------
-const mockClubs: Club[] = [
-  {
-    id: "1",
-    name: "Goizueta Business Association",
-    description:
-      "The premier organization for business students, offering networking, case competitions, and career development.",
-    fullDescription:
-      "The Goizueta Business Association (GBA) is the premier organization for business students at Emory University. We bring together undergraduate and graduate students who are passionate about business, finance, consulting, and entrepreneurship.\n\nOur mission is to provide members with unparalleled access to career opportunities, professional development, and networking events with top firms including Goldman Sachs, McKinsey & Company, Deloitte, and more. Through weekly workshops, case competitions, and industry panels, we prepare our members for successful careers in business.\n\nGBA hosts 20+ events per semester including:\n• Corporate information sessions and networking nights\n• Professional development workshops\n• National case competitions\n• Alumni mentorship program\n• Community service initiatives\n\nWhether you're interested in investment banking, consulting, marketing, or entrepreneurship, GBA provides the resources, connections, and community to help you achieve your career goals.",
-    category: "Professional",
-    school: ["Business School", "Undergraduate"],
-    members: 240,
-    rating: 4.9,
-    verified: true,
-    lastUpdatedISO: "2025-10-18T12:00:00.000Z",
-    nextEvent: {
-      name: "Goldman Sachs Info Session",
-      date: "Oct 18",
-      time: "6:00 PM",
-      location: "Goizueta Business School",
-    },
-    website: "https://gba.emory.edu",
-    tags: ["Finance", "Consulting", "Networking", "Career"],
-    activityScore: 95,
-    discoverabilityIndex: 98,
-    contactEmail: "gba@emory.edu",
-    meetingInfo:
-      "General meetings every Tuesday at 7:00 PM in Goizueta Business School, Room 210. Officer meetings on Thursdays.",
-    officers: {
-      president: {
-        name: "Alexandra Martinez",
-        email: "alexandra.martinez@emory.edu",
-      },
-      officers: [
-        {
-          name: "James Thompson",
-          email: "james.thompson@emory.edu",
-          role: "VP of Finance",
-        },
-        {
-          name: "Priya Patel",
-          email: "priya.patel@emory.edu",
-          role: "VP of Marketing",
-        },
-        {
-          name: "Marcus Johnson",
-          email: "marcus.johnson@emory.edu",
-          role: "VP of Events",
-        },
-      ],
-    },
-  },
-  {
-    id: "2",
-    name: "Pre-Medical Society",
-    description:
-      "Supporting pre-med students through MCAT prep, research opportunities, and medical school guidance.",
-    category: "Academic",
-    school: ["Pre-Med", "Undergraduate", "Graduate"],
-    members: 180,
-    rating: 4.8,
-    verified: true,
-    lastUpdatedISO: "2025-10-17T12:00:00.000Z",
-    nextEvent: {
-      name: "Medical School Panel",
-      date: "Oct 20",
-      time: "7:00 PM",
-      location: "Chemistry Building Room 240",
-    },
-    website: "https://premed.emory.edu",
-    tags: ["MCAT", "Research", "Medical School", "Healthcare"],
-    activityScore: 88,
-    discoverabilityIndex: 92,
-  },
-  {
-    id: "3",
-    name: "Computer Science Society",
-    description:
-      "Connecting CS students through hackathons, tech talks, and industry networking events.",
-    category: "Academic",
-    school: ["Liberal Arts", "Undergraduate", "Graduate"],
-    members: 200,
-    rating: 4.6,
-    verified: true,
-    lastUpdatedISO: "2025-10-18T09:00:00.000Z",
-    nextEvent: {
-      name: "Google Tech Talk",
-      date: "Oct 21",
-      time: "5:30 PM",
-      location: "Math & Science Center E208",
-    },
-    website: "https://css.emory.edu",
-    tags: ["Programming", "Hackathons", "Tech Industry", "Innovation"],
-    activityScore: 90,
-    discoverabilityIndex: 89,
-  },
-];
+// shape returned by GET /api/clubs/<uuid>/profile
+type ClubProfile = {
+  id: string;
+  name: string;
+  description: string | null;
+  purpose: string | null;
+  activities: string | null;
+  mediaUrls: string[];
+  contactEmail: string | null;
+  contactPhone: string | null;
+  requestInfoFormUrl: string | null;
+  status: string;
+  verified: boolean;
+  lastUpdatedAt: string | null;
+  updateRecencyBadge: string | null;
+};
 
 const schoolOptions = [
   "All Schools",
@@ -196,6 +113,7 @@ const categoryOptions = [
 ];
 
 function formatUpdatedAgo(iso: string): string {
+  if (!iso) return "N/A";
   const d = new Date(iso);
   const now = new Date();
   const diffHrs = Math.max(0, Math.floor((+now - +d) / (1000 * 60 * 60)));
@@ -219,11 +137,12 @@ export function DiscoverClubs() {
 
   // which club is expanded (its compact card is replaced by details)
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  // track which club is loading details from /profile
+  const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------
-  // ORIGINAL BACKEND FETCH LOGIC (keep for later)
+  // BACKEND FETCH FOR LIST OF CLUBS
   // ---------------------------------------------------------------------
-  /*
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
@@ -240,39 +159,71 @@ export function DiscoverClubs() {
     fetch(`/api/clubs?${params.toString()}`, { signal: controller.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await r.text());
-        return r.json() as Promise<ApiClubsResp>;
+        return (await r.json()) as ApiClubsResp;
       })
       .then((data) => {
         setClubs(data.items || []);
         setTotal(data.total || 0);
       })
-      .catch((e) => {
-        if (e.name !== "AbortError")
+      .catch((e: any) => {
+        if (e.name !== "AbortError") {
+          console.error("Failed to load clubs", e);
           setErr(e.message || "Failed to load clubs");
+        }
       })
       .finally(() => setLoading(false));
 
     return () => controller.abort();
   }, [searchTerm, selectedSchool, selectedCategory, sortBy, showVerifiedOnly]);
-  */
 
   // ---------------------------------------------------------------------
-  // MOCK DATA EFFECT (UI TESTING ONLY)
+  // VIEW DETAILS -> fetch /api/clubs/:id/profile and merge into Club
   // ---------------------------------------------------------------------
-  useEffect(() => {
-    setLoading(true);
-    setErr(null);
-    setClubs(mockClubs);
-    setTotal(mockClubs.length);
-    setLoading(false);
-  }, []);
-
   const handleViewDetails = (club: Club) => {
-    setSelectedClub(club);
-    setTimeout(() => {
-      const el = document.getElementById(`club-details-${club.id}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
+    setLoadingDetailsId(club.id);
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/clubs/${club.id}/profile`);
+        if (!res.ok) {
+          console.warn("Profile fetch failed, falling back to list club");
+          setSelectedClub(club);
+          return;
+        }
+
+        const profile: ClubProfile = await res.json();
+
+        const mergedClub: Club = {
+          ...club,
+          // Prefer purpose/description from profile as our "fullDescription"
+          fullDescription:
+            profile.purpose ??
+            profile.description ??
+            club.fullDescription ??
+            club.description,
+          contactEmail: profile.contactEmail ?? club.contactEmail,
+          // meetingInfo & officers currently only exist on the front-end mock
+          // so we leave them as-is on club for now
+          verified:
+            typeof profile.verified === "boolean"
+              ? profile.verified
+              : club.verified,
+          lastUpdatedISO:
+            profile.lastUpdatedAt ?? club.lastUpdatedISO ?? new Date().toISOString(),
+        };
+
+        setSelectedClub(mergedClub);
+      } catch (e) {
+        console.error("Error loading club profile", e);
+        setSelectedClub(club);
+      } finally {
+        setLoadingDetailsId(null);
+        setTimeout(() => {
+          const el = document.getElementById(`club-details-${club.id}`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
+      }
+    })();
   };
 
   const filteredAndSortedClubs = useMemo(() => {
@@ -281,17 +232,17 @@ export function DiscoverClubs() {
     arr.sort((a, b) => {
       switch (sortBy) {
         case "discoverability":
-          return b.discoverabilityIndex - a.discoverabilityIndex;
+          return (b.discoverabilityIndex || 0) - (a.discoverabilityIndex || 0);
         case "members":
-          return b.members - a.members;
+          return (b.members || 0) - (a.members || 0);
         case "rating":
-          return (b.rating ?? 0) - (a.rating ?? 0);
+          return (b.rating || 0) - (a.rating || 0);
         case "activity":
-          return b.activityScore - a.activityScore;
+          return (b.activityScore || 0) - (a.activityScore || 0);
         case "updated":
           return +new Date(b.lastUpdatedISO) - +new Date(a.lastUpdatedISO);
         default:
-          return b.discoverabilityIndex - a.discoverabilityIndex;
+          return (b.discoverabilityIndex || 0) - (a.discoverabilityIndex || 0);
       }
     });
 
@@ -570,8 +521,11 @@ export function DiscoverClubs() {
                               <Button
                                 className="w-full bg-[#012169] hover:bg-[#001a5c]"
                                 onClick={() => handleViewDetails(club)}
+                                disabled={loadingDetailsId === club.id}
                               >
-                                View Details
+                                {loadingDetailsId === club.id
+                                  ? "Loading…"
+                                  : "View Details"}
                               </Button>
                               <Button variant="outline" className="w-full">
                                 Request Info
