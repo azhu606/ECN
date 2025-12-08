@@ -73,8 +73,7 @@ import {
   Building2,
 } from "lucide-react";
 
-const PLACEHOLDER_CLUB_ID =
-  "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
+const PLACEHOLDER_CLUB_ID = "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 interface ClubMetrics {
@@ -356,10 +355,10 @@ export function ForOfficers({
   const [profileSaving, setProfileSaving] = useState<boolean>(false);
 
   // Events & activity (placeholder + optional backend)
-  const [events, setEvents] =
-    useState<UpcomingEvent[]>(upcomingEventsFallback);
-  const [activity, setActivity] =
-    useState<RecentActivity[]>(recentActivityFallback);
+  const [events, setEvents] = useState<UpcomingEvent[]>(upcomingEventsFallback);
+  const [activity, setActivity] = useState<RecentActivity[]>(
+    recentActivityFallback
+  );
 
   const effectiveBase = apiBaseUrl ?? API_BASE;
   const effectiveClubId = clubId || PLACEHOLDER_CLUB_ID;
@@ -371,7 +370,7 @@ export function ForOfficers({
     const updated = new Date(clubProfile.lastUpdatedAt);
     const now = new Date();
     const diffDays = Math.floor(
-      (now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24),
+      (now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24)
     );
     if (diffDays <= 0) return "Last updated today";
     if (diffDays === 1) return "Last updated 1 day ago";
@@ -388,7 +387,7 @@ export function ForOfficers({
         setMetricsError(null);
         const res = await fetch(
           `${effectiveBase}/clubs/${effectiveClubId}/metrics`,
-          { credentials: "include" },
+          { credentials: "include" }
         );
         if (!res.ok) {
           throw new Error(`Failed to load metrics (${res.status})`);
@@ -409,7 +408,7 @@ export function ForOfficers({
         setProfileError(null);
         const res = await fetch(
           `${effectiveBase}/clubs/${effectiveClubId}/profile`,
-          { credentials: "include" },
+          { credentials: "include" }
         );
         if (!res.ok) {
           throw new Error(`Failed to load profile (${res.status})`);
@@ -436,7 +435,7 @@ export function ForOfficers({
       try {
         const res = await fetch(
           `${effectiveBase}/clubs/${effectiveClubId}/events?upcoming=true`,
-          { credentials: "include" },
+          { credentials: "include" }
         );
         if (!res.ok) return;
         const data: UpcomingEvent[] = await res.json();
@@ -450,10 +449,11 @@ export function ForOfficers({
       try {
         const res = await fetch(
           `${effectiveBase}/clubs/${effectiveClubId}/members`,
-          { credentials: "include" },
+          { credentials: "include" }
         );
         if (!res.ok) return;
         const data: Member[] = await res.json();
+        console.log("MEMBERS FROM API:", data);
         setMembers(data);
       } catch (err) {
         console.error("Failed to load club members", err);
@@ -490,7 +490,7 @@ export function ForOfficers({
             requestInfoFormUrl: clubProfile.requestInfoFormUrl,
             status: clubProfile.status,
           }),
-        },
+        }
       );
 
       if (!res.ok) {
@@ -749,13 +749,13 @@ export function ForOfficers({
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs
           value={selectedTab}
           onValueChange={setSelectedTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+          <TabsList>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
@@ -786,15 +786,11 @@ export function ForOfficers({
                       <div className="text-2xl font-bold">
                         {metrics.members}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        Total Members
-                      </div>
+                      <div className="text-sm text-gray-500">Total Members</div>
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">
-                        +{metrics.memberGrowth}
-                      </span>
+                      <span className="text-sm">+{metrics.memberGrowth}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -813,9 +809,7 @@ export function ForOfficers({
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">
-                        {metrics.attendanceRate}%
-                      </span>
+                      <span className="text-sm">{metrics.attendanceRate}%</span>
                     </div>
                   </div>
                 </CardContent>
@@ -828,15 +822,11 @@ export function ForOfficers({
                       <div className="text-2xl font-bold">
                         {metrics.profileViews}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        Profile Views
-                      </div>
+                      <div className="text-sm text-gray-500">Profile Views</div>
                     </div>
                     <div className="flex items-center space-x-1 text-green-600">
                       <TrendingUp className="w-4 h-4" />
-                      <span className="text-sm">
-                        +{metrics.profileGrowth}%
-                      </span>
+                      <span className="text-sm">+{metrics.profileGrowth}%</span>
                     </div>
                   </div>
                 </CardContent>
@@ -1068,9 +1058,9 @@ export function ForOfficers({
                             (metrics.memberGrowth /
                               Math.max(
                                 metrics.members - metrics.memberGrowth,
-                                1,
+                                1
                               )) *
-                              100,
+                              100
                           )}% growth rate`
                         : "Growth rate"}
                     </div>
@@ -1084,9 +1074,7 @@ export function ForOfficers({
                     <div className="text-3xl font-bold text-blue-600">
                       {metrics.attendanceRate}%
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Avg. Attendance
-                    </div>
+                    <div className="text-sm text-gray-500">Avg. Attendance</div>
                     <div className="text-xs text-green-600">
                       +3% vs last month
                     </div>
@@ -1129,7 +1117,7 @@ export function ForOfficers({
                                   month: "short",
                                   day: "numeric",
                                   year: "numeric",
-                                },
+                                }
                               )
                             : "—"}
                         </TableCell>
@@ -1261,9 +1249,8 @@ export function ForOfficers({
                       <div>
                         <div className="text-2xl font-bold text-purple-600">
                           {
-                            members.filter(
-                              (m) => m.position === "president",
-                            ).length
+                            members.filter((m) => m.position === "president")
+                              .length
                           }
                         </div>
                         <div className="text-sm text-gray-600">President</div>
@@ -1271,9 +1258,8 @@ export function ForOfficers({
                       <div>
                         <div className="text-2xl font-bold text-blue-600">
                           {
-                            members.filter(
-                              (m) => m.position === "officer",
-                            ).length
+                            members.filter((m) => m.position === "officer")
+                              .length
                           }
                         </div>
                         <div className="text-sm text-gray-600">Officers</div>
@@ -1281,9 +1267,8 @@ export function ForOfficers({
                       <div>
                         <div className="text-2xl font-bold text-gray-600">
                           {
-                            members.filter(
-                              (m) => m.position === "member",
-                            ).length
+                            members.filter((m) => m.position === "member")
+                              .length
                           }
                         </div>
                         <div className="text-sm text-gray-600">Members</div>
@@ -1493,9 +1478,7 @@ export function ForOfficers({
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">
-                        Profile Views
-                      </div>
+                      <div className="text-sm text-gray-500">Profile Views</div>
                       <div className="text-2xl font-bold">
                         {metrics.profileViews}
                       </div>
@@ -1533,9 +1516,7 @@ export function ForOfficers({
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">
-                        Member Count
-                      </div>
+                      <div className="text-sm text-gray-500">Member Count</div>
                       <div className="text-2xl font-bold">
                         {metrics.members}
                       </div>
@@ -2090,4 +2071,3 @@ export function ForOfficers({
     </div>
   );
 }
-

@@ -106,7 +106,6 @@ def get_club_metrics(club_id):
             "engagementScore": engagement_score,
         }
         return jsonify(payload)
-
 @api_bp.get("/clubs/<uuid:club_id>/members")
 def get_club_members(club_id):
     """
@@ -123,48 +122,76 @@ def get_club_members(club_id):
         if not club:
             return jsonify({"error": "Club not found"}), 404
 
-        member_ids = (club.member_ids or []) + (club.officers or []) + (club.president_ids or [])
-        # de-duplicate
-        member_ids = list({m for m in member_ids})
-
-        if not member_ids:
-            return jsonify([])
-
-        students = (
-            session.query(Student)
-            .filter(Student.id.in_(member_ids))
+        # --- 1) Start from OfficerRole ---
+        rows = (
+            session.query(OfficerRole, Student)
+            .join(Student, OfficerRole.student_id == Student.id)
+            .filter(OfficerRole.club_id == club_id)
             .all()
         )
 
-        president_ids = set(club.president_ids or [])
-        officer_ids = set(club.officers or [])
+        def role_priority(role: str) -> int:
+            # lower = higher priority
+            mapping = {
+                "president": 0,
+                "managing_exec": 1,
+                "officer": 2,
+            }
+            return mapping.get(role, 3)
 
-        results = []
-        for s in students:
-            if s.id in president_ids:
-                position = "president"
-            elif s.id in officer_ids or club.id in (s.officer_clubs or []):
-                position = "officer"
-            else:
-                position = "member"
+        members_by_id: dict = {}
 
-            results.append(
-                {
-                    "id": str(s.id),
-                    "name": s.name,
-                    "email": s.email,
-                    "position": position,
-                    "joinDate": s.created_at.isoformat(),
-                    "eventsAttended": len(s.attended_events or []),
+        for role_row, stu in rows:
+            sid = stu.id
+            new_role = role_row.role  # "president" | "officer" | "managing_exec"
+
+            existing = members_by_id.get(sid)
+            if existing is None or role_priority(new_role) < role_priority(existing["position"]):
+                members_by_id[sid] = {
+                    "id": str(stu.id),
+                    "name": stu.name,
+                    "email": stu.email,
+                    "position": new_role,  # we'll normalize below
+                    "joinDate": stu.created_at.isoformat() if stu.created_at else None,
+                    "eventsAttended": len(stu.attended_events or []),
                 }
-            )
 
-        # Optional: sort by hierarchy (president → officers → members)
+        # --- 2) Optional: extra non-officer members from club.member_ids ---
+        extra_member_ids = set(club.member_ids or []) - set(members_by_id.keys())
+
+        if extra_member_ids:
+            extra_students = (
+                session.query(Student)
+                .filter(Student.id.in_(extra_member_ids))
+                .all()
+            )
+            for stu in extra_students:
+                members_by_id[stu.id] = {
+                    "id": str(stu.id),
+                    "name": stu.name,
+                    "email": stu.email,
+                    "position": "member",
+                    "joinDate": stu.created_at.isoformat() if stu.created_at else None,
+                    "eventsAttended": len(stu.attended_events or []),
+                }
+
+        # --- 3) Normalize positions + sort by hierarchy ---
+        results = list(members_by_id.values())
+
+        for m in results:
+            # collapse roles so the frontend only sees "president" | "officer" | "member"
+            if m["position"] not in ("president", "officer", "member"):
+                if m["position"] == "managing_exec":
+                    m["position"] = "officer"
+                else:
+                    m["position"] = "member"
+
         results.sort(
             key=lambda m: {"president": 0, "officer": 1, "member": 2}.get(m["position"], 3)
         )
 
         return jsonify(results)
+
 
 @api_bp.get("/clubs/<uuid:club_id>/events")
 def get_club_events(club_id):
@@ -490,3 +517,4 @@ def update_club_profile(club_id):
             "updateRecencyBadge": club.update_recency_badge,
         }
         return jsonify(payload)
+
