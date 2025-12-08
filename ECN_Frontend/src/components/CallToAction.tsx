@@ -91,7 +91,7 @@ export function CallToAction() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           <div className="space-y-2">
             <Shield className="w-8 h-8 text-blue-300 mx-auto" />
-            <div className="text-2xl font-bold">NetID</div>
+            <div className="text-2xl font-bold">Emory Email</div>
             <div className="text-sm text-blue-200">Secure Authentication</div>
           </div>
           <div className="space-y-2">

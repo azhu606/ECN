@@ -84,7 +84,8 @@ class Club(Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     last_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     update_recency_badge: Mapped[str | None] = mapped_column(String)
-
+    org_chart_schema: Mapped[str | None] = mapped_column(String)
+    
     officers: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, server_default=text("'{}'")
     )
@@ -187,6 +188,7 @@ class OfficerRole(Base):
     club_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     role: Mapped[str] = mapped_column(OfficerRoleEnum, nullable=False)
+    hierarchy_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assigned_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

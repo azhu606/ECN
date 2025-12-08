@@ -73,6 +73,10 @@ import {
   Building2,
 } from "lucide-react";
 
+const PLACEHOLDER_CLUB_ID =
+  "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
 interface ClubMetrics {
   members: number;
   memberGrowth: number;
@@ -82,6 +86,22 @@ interface ClubMetrics {
   profileGrowth: number;
   freshnessScore: number;
   engagementScore: number;
+}
+
+interface ClubProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  purpose: string | null;
+  activities: string | null;
+  mediaUrls: string[];
+  contactEmail: string | null;
+  contactPhone: string | null;
+  requestInfoFormUrl: string | null;
+  status: "active" | "inactive" | "delisted";
+  verified: boolean;
+  lastUpdatedAt: string | null; // ISO string
+  updateRecencyBadge: string | null;
 }
 
 interface UpcomingEvent {
@@ -282,7 +302,11 @@ interface ForOfficersProps {
   apiBaseUrl?: string; // e.g. "/api"
 }
 
-export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps) {
+export function ForOfficers({
+  isLoggedIn,
+  clubId,
+  apiBaseUrl,
+}: ForOfficersProps) {
   const navigate = useNavigate();
 
   const [selectedTab, setSelectedTab] = useState("dashboard");
@@ -291,6 +315,7 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
 
+  // Members / club switching / registration / invite state (placeholders)
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [memberToKick, setMemberToKick] = useState<Member | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
@@ -319,34 +344,100 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
     message: "",
   });
 
-  // NEW: state mirroring backend resources
-  const [metrics, setMetrics] = useState<ClubMetrics>(clubMetricsFallback);
-  const [events, setEvents] = useState<UpcomingEvent[]>(upcomingEventsFallback);
+  // Metrics state (backed by backend but with fallback placeholder)
+  const [clubMetrics, setClubMetrics] = useState<ClubMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState<boolean>(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  // Profile state (backend)
+  const [clubProfile, setClubProfile] = useState<ClubProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState<boolean>(false);
+
+  // Events & activity (placeholder + optional backend)
+  const [events, setEvents] =
+    useState<UpcomingEvent[]>(upcomingEventsFallback);
   const [activity, setActivity] =
     useState<RecentActivity[]>(recentActivityFallback);
 
-  // --------------------
-  // Fetch data from backend
-  // --------------------
-  useEffect(() => {
-    if (!isLoggedIn || !clubId) return;
+  const effectiveBase = apiBaseUrl ?? API_BASE;
+  const effectiveClubId = clubId || PLACEHOLDER_CLUB_ID;
 
-    const base = apiBaseUrl ?? "/api";
+  const metrics: ClubMetrics = clubMetrics ?? clubMetricsFallback;
+
+  const lastUpdatedLabel = (() => {
+    if (!clubProfile?.lastUpdatedAt) return "Last updated —";
+    const updated = new Date(clubProfile.lastUpdatedAt);
+    const now = new Date();
+    const diffDays = Math.floor(
+      (now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays <= 0) return "Last updated today";
+    if (diffDays === 1) return "Last updated 1 day ago";
+    return `Last updated ${diffDays} days ago`;
+  })();
+
+  // Fetch metrics + profile from backend
+  useEffect(() => {
+    if (!isLoggedIn) return;
 
     const fetchMetrics = async () => {
       try {
-        const res = await fetch(`${base}/clubs/${clubId}/metrics`);
-        if (!res.ok) return;
+        setMetricsLoading(true);
+        setMetricsError(null);
+        const res = await fetch(
+          `${effectiveBase}/clubs/${effectiveClubId}/metrics`,
+          { credentials: "include" },
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load metrics (${res.status})`);
+        }
         const data: ClubMetrics = await res.json();
-        setMetrics(data);
+        setClubMetrics(data);
       } catch (err) {
-        console.error("Failed to load club metrics", err);
+        console.error("Error loading club metrics", err);
+        setMetricsError("Unable to load club analytics right now.");
+      } finally {
+        setMetricsLoading(false);
       }
     };
 
+    const fetchProfile = async () => {
+      try {
+        setProfileLoading(true);
+        setProfileError(null);
+        const res = await fetch(
+          `${effectiveBase}/clubs/${effectiveClubId}/profile`,
+          { credentials: "include" },
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load profile (${res.status})`);
+        }
+        const data: ClubProfile = await res.json();
+        setClubProfile(data);
+      } catch (err) {
+        console.error("Error loading club profile", err);
+        setProfileError("Unable to load club profile right now.");
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchMetrics();
+    fetchProfile();
+  }, [isLoggedIn, effectiveBase, effectiveClubId]);
+
+  // Fetch events + members (optional backend; keeps placeholder if it fails)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${base}/clubs/${clubId}/events?upcoming=true`);
+        const res = await fetch(
+          `${effectiveBase}/clubs/${effectiveClubId}/events?upcoming=true`,
+          { credentials: "include" },
+        );
         if (!res.ok) return;
         const data: UpcomingEvent[] = await res.json();
         setEvents(data);
@@ -357,7 +448,10 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
 
     const fetchMembers = async () => {
       try {
-        const res = await fetch(`${base}/clubs/${clubId}/members`);
+        const res = await fetch(
+          `${effectiveBase}/clubs/${effectiveClubId}/members`,
+          { credentials: "include" },
+        );
         if (!res.ok) return;
         const data: Member[] = await res.json();
         setMembers(data);
@@ -366,17 +460,55 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
       }
     };
 
-    // Optional: later you can add /clubs/:id/activity
-    // const fetchActivity = async () => { ... }
-
-    fetchMetrics();
+    // Optional future: fetch activity from backend and call setActivity
     fetchEvents();
     fetchMembers();
-  }, [isLoggedIn, clubId, apiBaseUrl]);
+  }, [isLoggedIn, effectiveBase, effectiveClubId]);
 
-  // --------------------
-  // Auth gate (original)
-  // --------------------
+  const handleSaveProfile = async () => {
+    if (!clubProfile) return;
+    try {
+      setProfileSaving(true);
+      setProfileError(null);
+
+      const res = await fetch(
+        `${effectiveBase}/clubs/${effectiveClubId}/profile`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            name: clubProfile.name,
+            description: clubProfile.description,
+            purpose: clubProfile.purpose,
+            activities: clubProfile.activities,
+            mediaUrls: clubProfile.mediaUrls,
+            contactEmail: clubProfile.contactEmail,
+            contactPhone: clubProfile.contactPhone,
+            requestInfoFormUrl: clubProfile.requestInfoFormUrl,
+            status: clubProfile.status,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Save failed (${res.status})`);
+      }
+
+      const data: ClubProfile = await res.json();
+      setClubProfile(data);
+    } catch (err: any) {
+      console.error("Error saving club profile", err);
+      setProfileError(err.message || "Failed to save profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  // If not logged in, show authentication prompt
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
@@ -559,13 +691,19 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                 Manage your club and track engagement
               </p>
               <div className="flex items-center space-x-4 mt-3">
-                <Badge className="bg-[#012169]">{currentClub}</Badge>
+                <Badge className="bg-[#012169]">
+                  {clubProfile?.name || currentClub}
+                </Badge>
                 <Badge
                   variant="outline"
-                  className="text-green-600 border-green-200"
+                  className={
+                    clubProfile?.verified
+                      ? "text-green-600 border-green-200"
+                      : "text-gray-600 border-gray-200"
+                  }
                 >
                   <CheckCircle className="w-3 h-3 mr-1" />
-                  Verified
+                  {clubProfile?.verified ? "Verified" : "Not Verified"}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -574,6 +712,11 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                   Officer Access
                 </Badge>
               </div>
+              {metricsLoading && (
+                <p className="mt-2 text-xs text-gray-400">
+                  Loading latest analytics…
+                </p>
+              )}
             </div>
             <div className="flex items-center space-x-3">
               <div className="text-right">
@@ -626,9 +769,8 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                Your club profile was last updated 5 days ago. Keep your
-                information fresh with regular updates to maintain high
-                discoverability.
+                Your club profile was recently updated. Keep your information
+                fresh with regular updates to maintain high discoverability.
                 <Button variant="link" className="p-0 ml-2 h-auto">
                   Update now →
                 </Button>
@@ -912,20 +1054,26 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                 </CardContent>
               </Card>
 
+              {/* Growth card */}
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
-                    <div className="text-3xl font-bold text-purple-600">
-                      {
-                        members.filter(
-                          (m) =>
-                            m.position === "officer" ||
-                            m.position === "president",
-                        ).length
-                      }
+                    <div className="text-3xl font-bold text-green-600">
+                      {metrics.memberGrowth}
                     </div>
-                    <div className="text-sm text-gray-500">Officers</div>
-                    <div className="text-xs text-gray-500">Leadership team</div>
+                    <div className="text-sm text-gray-500">New This Month</div>
+                    <div className="text-xs text-gray-500">
+                      {metrics.members
+                        ? `${Math.round(
+                            (metrics.memberGrowth /
+                              Math.max(
+                                metrics.members - metrics.memberGrowth,
+                                1,
+                              )) *
+                              100,
+                          )}% growth rate`
+                        : "Growth rate"}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -970,7 +1118,9 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                           {member.name}
                         </TableCell>
                         <TableCell>{member.email}</TableCell>
-                        <TableCell>{getPositionBadge(member.position)}</TableCell>
+                        <TableCell>
+                          {getPositionBadge(member.position)}
+                        </TableCell>
                         <TableCell>
                           {member.joinDate
                             ? new Date(member.joinDate).toLocaleDateString(
@@ -1151,11 +1301,23 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
               <h2 className="text-2xl font-bold">Club Profile</h2>
               <div className="flex items-center space-x-2">
                 <Badge variant="outline" className="text-blue-600">
-                  Last updated 5 days ago
+                  {lastUpdatedLabel}
                 </Badge>
-                <Button>Save Changes</Button>
+                <Button
+                  onClick={handleSaveProfile}
+                  disabled={!clubProfile || profileSaving}
+                >
+                  {profileSaving ? "Saving..." : "Save Changes"}
+                </Button>
               </div>
             </div>
+
+            {profileError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{profileError}</AlertDescription>
+              </Alert>
+            )}
 
             <div className="grid lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2">
@@ -1163,27 +1325,93 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                   <CardTitle>Basic Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Input
-                    placeholder="Club Name"
-                    defaultValue="Pre-Medical Society"
-                  />
-                  <Textarea
-                    placeholder="Club Description"
-                    defaultValue="Supporting pre-medical students through MCAT prep, research opportunities, and medical school guidance."
-                    rows={4}
-                  />
-                  <Input
-                    placeholder="Meeting Location"
-                    defaultValue="Chemistry Building Room 240"
-                  />
-                  <Input
-                    placeholder="Meeting Time"
-                    defaultValue="Thursdays 6-7:30 PM"
-                  />
-                  <Input
-                    placeholder="Website URL"
-                    defaultValue="https://premed.emory.edu"
-                  />
+                  {profileLoading && (
+                    <p className="text-sm text-gray-500">Loading profile…</p>
+                  )}
+
+                  {clubProfile && (
+                    <>
+                      <Input
+                        placeholder="Club Name"
+                        value={clubProfile.name}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            name: e.target.value,
+                          })
+                        }
+                      />
+
+                      <Textarea
+                        placeholder="Club Description"
+                        value={clubProfile.description ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            description: e.target.value,
+                          })
+                        }
+                        rows={4}
+                      />
+
+                      <Textarea
+                        placeholder="Club Purpose (optional)"
+                        value={clubProfile.purpose ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            purpose: e.target.value,
+                          })
+                        }
+                        rows={3}
+                      />
+
+                      <Textarea
+                        placeholder="Typical Activities (optional)"
+                        value={clubProfile.activities ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            activities: e.target.value,
+                          })
+                        }
+                        rows={3}
+                      />
+
+                      <Input
+                        placeholder="Contact Email"
+                        value={clubProfile.contactEmail ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            contactEmail: e.target.value,
+                          })
+                        }
+                      />
+
+                      <Input
+                        placeholder="Contact Phone"
+                        value={clubProfile.contactPhone ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            contactPhone: e.target.value,
+                          })
+                        }
+                      />
+
+                      <Input
+                        placeholder="Info Request Form URL"
+                        value={clubProfile.requestInfoFormUrl ?? ""}
+                        onChange={(e) =>
+                          setClubProfile({
+                            ...clubProfile,
+                            requestInfoFormUrl: e.target.value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1212,9 +1440,9 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
 
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Contact Verification</span>
-                      <span className="font-medium text-green-600">
-                        Verified ✓
+                      <span>Verification Status</span>
+                      <span className="font-medium">
+                        {clubProfile?.verified ? "Verified ✓" : "Not verified"}
                       </span>
                     </div>
                   </div>
@@ -1222,8 +1450,8 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                   <Alert>
                     <Clock className="w-4 h-4" />
                     <AlertDescription className="text-sm">
-                      Update your profile within 7 days to maintain verification
-                      status.
+                      Keep your profile updated to maintain high
+                      discoverability.
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -1235,21 +1463,32 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
           <TabsContent value="analytics" className="space-y-6">
             <h2 className="text-2xl font-bold">Club Analytics</h2>
 
+            {metricsError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{metricsError}</AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Engagement Score from backend */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm text-gray-500">
-                        Discoverability Index
+                        Engagement Score
                       </div>
-                      <div className="text-2xl font-bold">92/100</div>
+                      <div className="text-2xl font-bold">
+                        {metrics.engagementScore}/100
+                      </div>
                     </div>
                     <TrendingUp className="w-5 h-5 text-green-500" />
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Profile Views */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1260,34 +1499,49 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
                       <div className="text-2xl font-bold">
                         {metrics.profileViews}
                       </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        +{metrics.profileGrowth}% vs last period
+                      </div>
                     </div>
                     <Eye className="w-5 h-5 text-blue-500" />
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Attendance */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm text-gray-500">
-                        Info Requests
+                        Attendance Rate
                       </div>
-                      <div className="text-2xl font-bold">23</div>
+                      <div className="text-2xl font-bold">
+                        {metrics.attendanceRate}%
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Avg. {metrics.eventAttendance} attendees / event
+                      </div>
                     </div>
-                    <Mail className="w-5 h-5 text-orange-500" />
+                    <Users className="w-5 h-5 text-green-500" />
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Member count */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm text-gray-500">
-                        Avg. Rating
+                        Member Count
                       </div>
-                      <div className="text-2xl font-bold">4.8</div>
+                      <div className="text-2xl font-bold">
+                        {metrics.members}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        +{metrics.memberGrowth} this period
+                      </div>
                     </div>
                     <Heart className="w-5 h-5 text-red-500" />
                   </div>
@@ -1340,7 +1594,10 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
       </AlertDialog>
 
       {/* Switch Clubs Dialog */}
-      <Dialog open={showSwitchClubDialog} onOpenChange={setShowSwitchClubDialog}>
+      <Dialog
+        open={showSwitchClubDialog}
+        onOpenChange={setShowSwitchClubDialog}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Switch Clubs</DialogTitle>
@@ -1404,7 +1661,10 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
       </Dialog>
 
       {/* Register Club Dialog */}
-      <Dialog open={showRegisterClubDialog} onOpenChange={setShowRegisterClubDialog}>
+      <Dialog
+        open={showRegisterClubDialog}
+        onOpenChange={setShowRegisterClubDialog}
+      >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Register New Club</DialogTitle>
@@ -1678,7 +1938,10 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
       </Dialog>
 
       {/* Invite Member Dialog */}
-      <Dialog open={showInviteMemberDialog} onOpenChange={setShowInviteMemberDialog}>
+      <Dialog
+        open={showInviteMemberDialog}
+        onOpenChange={setShowInviteMemberDialog}
+      >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invite New Member</DialogTitle>
@@ -1771,8 +2034,9 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
           <DialogHeader>
             <DialogTitle>Send Announcement to Members</DialogTitle>
             <DialogDescription>
-              This announcement will be sent to all {metrics.members}{" "}
-              members of {currentClub} via email and in-app notification.
+              This announcement will be sent to all {metrics.members} members of{" "}
+              {clubProfile?.name || currentClub || "your club"} via email and
+              in-app notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1810,6 +2074,7 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
             </Button>
             <Button
               onClick={() => {
+                // Hook this up to backend announcement endpoint later
                 alert(`Announcement sent to ${metrics.members} members!`);
                 setAnnouncementText("");
                 setShowAnnouncementModal(false);
@@ -1825,3 +2090,4 @@ export function ForOfficers({ isLoggedIn, clubId, apiBaseUrl }: ForOfficersProps
     </div>
   );
 }
+

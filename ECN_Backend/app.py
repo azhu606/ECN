@@ -1,12 +1,13 @@
 from flask import Flask
 from routes import api_bp  # your blueprint file
 from db_ops import create_all  # helper to create tables
+import os
 
 def create_app():
     app = Flask(__name__)
 
     # PostgreSQL connection (no password)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql+psycopg2://postgres@127.0.0.1:5432/ecn"
+    app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql+psycopg2://neondb_owner:npg_HD07lOxEZWik@ep-muddy-flower-ahr3u2zq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # Register blueprints
@@ -26,4 +27,6 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, port=5000)
+
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
