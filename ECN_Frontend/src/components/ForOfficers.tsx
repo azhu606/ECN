@@ -166,7 +166,7 @@ export function ForOfficers({
 }: ForOfficersProps) {
   const navigate = useNavigate();
 
-  const effectiveBase = apiBaseUrl ?? API_BASE;
+  const effectiveBase = API_BASE;
 
   const [selectedTab, setSelectedTab] = useState("dashboard");
 
