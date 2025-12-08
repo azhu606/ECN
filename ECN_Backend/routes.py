@@ -715,7 +715,7 @@ from models import Student, Event, EventRsvp
 # Add these imports at the top of routes.py if not already present:
 # from models import Student, Club, Event, OfficerRole, EventRsvp
 # from db_ops import get_session
-# from datetime import datetime
+# from datetime import datetime, timezone, timedelta
 # from sqlalchemy import func
 # ============================================================
 
@@ -724,33 +724,9 @@ from models import Student, Event, EventRsvp
 @api_bp.get("/students/<uuid:student_id>/my-clubs")
 def get_student_my_clubs(student_id):
     """
-    Returns all clubs a student has joined, with engagement metrics and upcoming events.
-    
-    Response shape:
-    [
-      {
-        "id": "uuid",
-        "name": "Club Name",
-        "role": "Member" | "Officer" | "President",
-        "joinDate": "2024-01-15T00:00:00",
-        "category": "Academic",
-        "verified": true,
-        "lastActivity": "2 hours ago",
-        "memberCount": 150,
-        "engagement": 85,
-        "nextEvent": {
-          "id": "uuid",
-          "name": "Event Name",
-          "date": "Oct 20",
-          "time": "7:00 PM"
-        },
-        "recentActivity": [
-          {"type": "event", "title": "...", "time": "3 hours ago"}
-        ]
-      }
-    ]
+    Returns all clubs a student has joined OR is an officer of, with engagement metrics and upcoming events.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timezone, timedelta
     
     with get_session() as session:
         student = session.get(Student, student_id)
@@ -758,7 +734,21 @@ def get_student_my_clubs(student_id):
             return jsonify({"error": "Student not found"}), 404
         
         # Get club IDs from student's my_clubs array
-        club_ids = student.my_clubs or []
+        club_ids_from_my_clubs = set(student.my_clubs or [])
+        
+        # Get club IDs from student's officer_clubs array
+        club_ids_from_officer_clubs = set(student.officer_clubs or [])
+        
+        # Get club IDs from OfficerRole table (most reliable source)
+        officer_role_rows = (
+            session.query(OfficerRole)
+            .filter(OfficerRole.student_id == student_id)
+            .all()
+        )
+        club_ids_from_officer_roles = set(r.club_id for r in officer_role_rows)
+        
+        # Combine all sources of club membership
+        club_ids = list(club_ids_from_my_clubs | club_ids_from_officer_clubs | club_ids_from_officer_roles)
         
         if not club_ids:
             return jsonify([])
@@ -787,7 +777,8 @@ def get_student_my_clubs(student_id):
                 role_lookup[r.club_id] = "Officer"
         
         results = []
-        now = datetime.utcnow()
+        # Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
         
         for club in clubs:
             # Determine role
@@ -847,16 +838,31 @@ def get_student_my_clubs(student_id):
             # Build recent activity from events
             recent_activity = []
             for e in recent_events[:3]:
-                time_diff = now - e.start_time if e.start_time < now else e.start_time - now
-                if time_diff.days > 0:
-                    time_str = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
-                elif time_diff.seconds > 3600:
-                    hours = time_diff.seconds // 3600
-                    time_str = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                # Make sure we're comparing timezone-aware datetimes
+                event_time = e.start_time
+                if event_time:
+                    # If event_time is naive, make it aware
+                    if event_time.tzinfo is None:
+                        event_time = event_time.replace(tzinfo=timezone.utc)
+                    
+                    if event_time < now:
+                        time_diff = now - event_time
+                    else:
+                        time_diff = event_time - now
+                    
+                    if time_diff.days > 0:
+                        time_str = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                    elif time_diff.seconds > 3600:
+                        hours = time_diff.seconds // 3600
+                        time_str = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                    else:
+                        time_str = "Recently"
+                    
+                    activity_type = "event" if event_time >= now else "update"
                 else:
                     time_str = "Recently"
+                    activity_type = "update"
                 
-                activity_type = "event" if e.start_time >= now else "update"
                 recent_activity.append({
                     "type": activity_type,
                     "title": e.title,
@@ -864,8 +870,14 @@ def get_student_my_clubs(student_id):
                 })
             
             # Calculate last activity time
+            last_activity = "Unknown"
             if club.updated_at:
-                time_diff = now - club.updated_at
+                updated_at = club.updated_at
+                # If updated_at is naive, make it aware
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                
+                time_diff = now - updated_at
                 if time_diff.days > 0:
                     last_activity = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
                 elif time_diff.seconds > 3600:
@@ -873,8 +885,6 @@ def get_student_my_clubs(student_id):
                     last_activity = f"{hours} hour{'s' if hours > 1 else ''} ago"
                 else:
                     last_activity = "Recently"
-            else:
-                last_activity = "Unknown"
             
             results.append({
                 "id": str(club.id),
@@ -900,19 +910,34 @@ def get_student_my_clubs(student_id):
 @api_bp.get("/students/<uuid:student_id>/upcoming-events")
 def get_student_upcoming_events(student_id):
     """
-    Returns all upcoming events from clubs the student has joined.
+    Returns all upcoming events from clubs the student has joined or is an officer of.
     """
+    from datetime import datetime, timezone
+    
     with get_session() as session:
         student = session.get(Student, student_id)
         if not student:
             return jsonify({"error": "Student not found"}), 404
         
-        club_ids = student.my_clubs or []
+        # Get all club IDs (from my_clubs, officer_clubs, and OfficerRole table)
+        club_ids_set = set(student.my_clubs or [])
+        club_ids_set.update(student.officer_clubs or [])
+        
+        # Also check OfficerRole table
+        officer_role_club_ids = (
+            session.query(OfficerRole.club_id)
+            .filter(OfficerRole.student_id == student_id)
+            .all()
+        )
+        club_ids_set.update(r[0] for r in officer_role_club_ids)
+        
+        club_ids = list(club_ids_set)
         
         if not club_ids:
             return jsonify([])
         
-        now = datetime.utcnow()
+        # Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
         
         # Get upcoming events from student's clubs
         events = (
@@ -955,12 +980,26 @@ def get_student_stats(student_id):
     """
     Returns aggregated stats for the student's club memberships.
     """
+    from datetime import datetime, timezone
+    
     with get_session() as session:
         student = session.get(Student, student_id)
         if not student:
             return jsonify({"error": "Student not found"}), 404
         
-        club_ids = student.my_clubs or []
+        # Get all club IDs (from my_clubs, officer_clubs, and OfficerRole table)
+        club_ids_set = set(student.my_clubs or [])
+        club_ids_set.update(student.officer_clubs or [])
+        
+        # Also check OfficerRole table
+        officer_role_club_ids = (
+            session.query(OfficerRole.club_id)
+            .filter(OfficerRole.student_id == student_id)
+            .all()
+        )
+        club_ids_set.update(r[0] for r in officer_role_club_ids)
+        
+        club_ids = list(club_ids_set)
         clubs_joined = len(club_ids)
         
         # Count leadership roles
@@ -974,7 +1013,8 @@ def get_student_stats(student_id):
         )
         
         # Count upcoming events from student's clubs
-        now = datetime.utcnow()
+        # Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
         upcoming_events = 0
         if club_ids:
             upcoming_events = (
@@ -1134,21 +1174,34 @@ def leave_club(club_id):
 @api_bp.get("/students/<uuid:student_id>/recent-activity")
 def get_student_recent_activity(student_id):
     """
-    Returns recent activity across all of the student's clubs.
+    Returns recent activity across all of the student's clubs (joined or officer).
     """
-    from datetime import timedelta
+    from datetime import datetime, timezone, timedelta
     
     with get_session() as session:
         student = session.get(Student, student_id)
         if not student:
             return jsonify({"error": "Student not found"}), 404
         
-        club_ids = student.my_clubs or []
+        # Get all club IDs (from my_clubs, officer_clubs, and OfficerRole table)
+        club_ids_set = set(student.my_clubs or [])
+        club_ids_set.update(student.officer_clubs or [])
+        
+        # Also check OfficerRole table
+        officer_role_club_ids = (
+            session.query(OfficerRole.club_id)
+            .filter(OfficerRole.student_id == student_id)
+            .all()
+        )
+        club_ids_set.update(r[0] for r in officer_role_club_ids)
+        
+        club_ids = list(club_ids_set)
         
         if not club_ids:
             return jsonify([])
         
-        now = datetime.utcnow()
+        # Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
         
         # Get recent events from student's clubs (past 30 days and upcoming)
         events = (
@@ -1166,8 +1219,14 @@ def get_student_recent_activity(student_id):
         results = []
         for event, club in events:
             # Determine time string
+            time_str = "Recently"
             if event.updated_at:
-                time_diff = now - event.updated_at
+                updated_at = event.updated_at
+                # If updated_at is naive, make it aware
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                
+                time_diff = now - updated_at
                 if time_diff.days > 0:
                     time_str = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
                 elif time_diff.seconds > 3600:
@@ -1176,13 +1235,20 @@ def get_student_recent_activity(student_id):
                 else:
                     minutes = max(1, time_diff.seconds // 60)
                     time_str = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
-            else:
-                time_str = "Recently"
             
             # Determine activity type
-            if event.start_time > now:
-                activity_type = "event"
-                title = f"{event.title} scheduled"
+            event_time = event.start_time
+            if event_time:
+                # If event_time is naive, make it aware
+                if event_time.tzinfo is None:
+                    event_time = event_time.replace(tzinfo=timezone.utc)
+                
+                if event_time > now:
+                    activity_type = "event"
+                    title = f"{event.title} scheduled"
+                else:
+                    activity_type = "update"
+                    title = event.title
             else:
                 activity_type = "update"
                 title = event.title
@@ -1197,7 +1263,6 @@ def get_student_recent_activity(student_id):
             })
         
         return jsonify(results)
-
 @api_bp.post("/events/<uuid:event_id>/rsvp")
 def toggle_event_rsvp(event_id):
     """
