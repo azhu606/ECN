@@ -107,6 +107,105 @@ def get_club_metrics(club_id):
         }
         return jsonify(payload)
 
+@api_bp.get("/clubs/<uuid:club_id>/members")
+def get_club_members(club_id):
+    """
+    Returns a flat member list for a club, including:
+    - id
+    - name
+    - email
+    - position: "president" | "officer" | "member"
+    - joinDate: ISO string
+    - eventsAttended: int
+    """
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        member_ids = (club.member_ids or []) + (club.officers or []) + (club.president_ids or [])
+        # de-duplicate
+        member_ids = list({m for m in member_ids})
+
+        if not member_ids:
+            return jsonify([])
+
+        students = (
+            session.query(Student)
+            .filter(Student.id.in_(member_ids))
+            .all()
+        )
+
+        president_ids = set(club.president_ids or [])
+        officer_ids = set(club.officers or [])
+
+        results = []
+        for s in students:
+            if s.id in president_ids:
+                position = "president"
+            elif s.id in officer_ids or club.id in (s.officer_clubs or []):
+                position = "officer"
+            else:
+                position = "member"
+
+            results.append(
+                {
+                    "id": str(s.id),
+                    "name": s.name,
+                    "email": s.email,
+                    "position": position,
+                    "joinDate": s.created_at.isoformat(),
+                    "eventsAttended": len(s.attended_events or []),
+                }
+            )
+
+        # Optional: sort by hierarchy (president → officers → members)
+        results.sort(
+            key=lambda m: {"president": 0, "officer": 1, "member": 2}.get(m["position"], 3)
+        )
+
+        return jsonify(results)
+
+@api_bp.get("/clubs/<uuid:club_id>/events")
+def get_club_events(club_id):
+    """
+    Returns events for a given club, shaped for the ForOfficers UI.
+    """
+    upcoming = request.args.get("upcoming", "true").lower() != "false"
+
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        q = session.query(Event).filter(Event.club_id == club_id)
+
+        if upcoming:
+            q = q.filter(Event.start_time >= datetime.utcnow())
+
+        events = q.order_by(Event.start_time.asc()).all()
+
+        def fmt_time(dt):
+            # "7:00 PM" style
+            return dt.strftime("%-I:%M %p") if dt else None
+
+        payload = [
+            {
+                "id": str(e.id),
+                "name": e.title,
+                "date": e.start_time.date().isoformat() if e.start_time else None,
+                "time": fmt_time(e.start_time),
+                "location": e.location,
+                "capacity": e.rsvp_limit,
+                "registered": len(e.rsvp_ids or []),
+                "status": e.status,  # "draft" | "published" | "live"
+            }
+            for e in events
+        ]
+
+        return jsonify(payload)
+
+
 # ---------- User Registration and Login ----------------
 @api_bp.post("/auth/register")
 def auth_register_route():
