@@ -6,6 +6,12 @@ from models import Club, Event, OfficerRole, Student
 from sqlalchemy import func
 from datetime import datetime
 
+from datetime import datetime
+import uuid
+
+from models import Club, Event, OfficerRole, Student, EventRsvp
+
+
 def _parse_iso_dt(value: str | None):
     if not value:
         return None
@@ -719,3 +725,137 @@ def delete_event(event_id):
         session.delete(event)
         session.commit()
         return jsonify({"ok": True})
+
+from datetime import datetime
+from uuid import UUID
+
+from flask import Blueprint, request, jsonify
+from uuid import UUID
+from datetime import datetime
+
+from models import Student, Event, EventRsvp  # we don't need RsvpStatus here
+from db_ops import get_session
+
+
+
+from uuid import UUID
+from datetime import datetime
+
+from models import Student, Event, EventRsvp
+from db_ops import get_session
+
+
+from datetime import datetime
+from flask import current_app  # at top of routes.py if not already
+
+from db_ops import get_session
+from models import Student, Event, EventRsvp
+
+
+@api_bp.post("/events/<uuid:event_id>/rsvp")
+def toggle_event_rsvp(event_id):
+    """
+    Toggle RSVP for a student on an event.
+
+    Request JSON:
+      { "userId": "<student_pk>" }  # or "studentId"
+
+    Response:
+      201 { "rsvped": True,  "registered": <int> }   # created RSVP
+      200 { "rsvped": False, "registered": <int> }   # removed RSVP
+    """
+    data = request.get_json(force=True) or {}
+    raw_student_id = data.get("userId") or data.get("studentId")
+
+    if not raw_student_id:
+        return jsonify(
+            {"error": "missing_user_id", "detail": "userId (studentId) is required"}
+        ), 400
+
+    current_app.logger.info("RSVP request: event=%s student=%s", event_id, raw_student_id)
+
+    with get_session() as session:
+        # ---- Load student & event using PK as-is ----
+        student = session.get(Student, raw_student_id)
+        if not student:
+            current_app.logger.info("Student not found for id %s", raw_student_id)
+            return jsonify(
+                {"error": "student_not_found", "detail": str(raw_student_id)}
+            ), 404
+
+        event = session.get(Event, event_id)
+        if not event:
+            current_app.logger.info("Event not found for id %s", event_id)
+            return jsonify(
+                {"error": "event_not_found", "detail": str(event_id)}
+            ), 404
+
+        # Existing RSVP row?
+        rsvp = (
+            session.query(EventRsvp)
+            .filter_by(event_id=event.id, student_id=student.id)
+            .one_or_none()
+        )
+
+        # Normalize arrays
+        event_rsvp_ids = list(event.rsvp_ids or [])
+        student_rsvped_events = list(student.rsvped_events or [])
+
+        # ---- If no RSVP yet → create one ----
+        if rsvp is None:
+            if (
+                event.rsvp_limit is not None
+                and len(event_rsvp_ids) >= event.rsvp_limit
+            ):
+                return jsonify(
+                    {"error": "event_full", "detail": "Event is at capacity"}
+                ), 400
+
+            rsvp = EventRsvp(
+                event_id=event.id,
+                student_id=student.id,
+                rsvp_status="going",
+                rsvp_time=datetime.utcnow(),
+            )
+            session.add(rsvp)
+
+            if student.id not in event_rsvp_ids:
+                event_rsvp_ids.append(student.id)
+            if event.id not in student_rsvped_events:
+                student_rsvped_events.append(event.id)
+
+            event.rsvp_ids = event_rsvp_ids
+            student.rsvped_events = student_rsvped_events
+
+            session.add(event)
+            session.add(student)
+            session.commit()
+
+            return jsonify(
+                {
+                    "rsvped": True,
+                    "registered": len(event_rsvp_ids),
+                }
+            ), 201
+
+        # ---- If RSVP exists → un-RSVP ----
+        session.delete(rsvp)
+
+        event_rsvp_ids = [sid for sid in event_rsvp_ids if sid != student.id]
+        student_rsvped_events = [
+            eid for eid in student_rsvped_events if eid != event.id
+        ]
+
+        event.rsvp_ids = event_rsvp_ids
+        student.rsvped_events = student_rsvped_events
+
+        session.add(event)
+        session.add(student)
+        session.commit()
+
+        return jsonify(
+            {
+                "rsvped": False,
+                "registered": len(event_rsvp_ids),
+            }
+        ), 200
