@@ -159,7 +159,7 @@ export function Events() {
   }, []);
 
   // ---- RSVP HANDLER (DISABLED UNTIL LOGGED IN) ----
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+  const API_BASE = "/api";
 
   const handleRSVP = async (eventId: string) => {
     if (!user) {
