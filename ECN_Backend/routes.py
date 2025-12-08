@@ -1,8 +1,24 @@
 from flask import Blueprint, request, jsonify, make_response, redirect
-from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, auth_register, auth_login, auth_me, auth_cookie_name, send_verification_link, complete_verification, _FRONTEND_BASE
+from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, auth_register, auth_login, auth_me, auth_cookie_name
 import os
 from db_ops import get_session
-from models import Club, Event
+from models import Club, Event, OfficerRole, Student
+from sqlalchemy import func
+from datetime import datetime
+
+from datetime import datetime
+import uuid
+
+from models import Club, Event, OfficerRole, Student, EventRsvp
+
+
+def _parse_iso_dt(value: str | None):
+    if not value:
+        return None
+    v = value
+    if v.endswith("Z"):
+        v = v[:-1] + "+00:00"
+    return datetime.fromisoformat(v)
 
 api_bp = Blueprint("api", __name__)
 
@@ -106,6 +122,164 @@ def get_club_metrics(club_id):
             "engagementScore": engagement_score,
         }
         return jsonify(payload)
+@api_bp.get("/clubs/<uuid:club_id>/members")
+def get_club_members(club_id):
+    """
+    Returns a flat member list for a club, including:
+    - id
+    - name
+    - email
+    - position: "president" | "officer" | "member"
+    - joinDate: ISO string
+    - eventsAttended: int
+
+    Uses both Club arrays AND OfficerRole for membership.
+    """
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        # base membership from arrays (if you ever use them)
+        member_ids = set(
+            (club.member_ids or [])
+            + (club.officers or [])
+            + (club.president_ids or [])
+        )
+
+        # add from OfficerRole (source of truth for officers/president)
+        role_rows = (
+            session.query(OfficerRole)
+            .filter(OfficerRole.club_id == club_id)
+            .all()
+        )
+
+        president_ids = set()
+        officer_ids = set()
+
+        for r in role_rows:
+            member_ids.add(r.student_id)
+            if r.role == "president":
+                president_ids.add(r.student_id)
+            elif r.role == "officer":
+                officer_ids.add(r.student_id)
+
+        if not member_ids:
+            return jsonify([])
+
+        students = (
+            session.query(Student)
+            .filter(Student.id.in_(member_ids))
+            .all()
+        )
+
+        results = []
+        for s in students:
+            if s.id in president_ids:
+                position = "president"
+            elif s.id in officer_ids or club.id in (s.officer_clubs or []):
+                position = "officer"
+            else:
+                position = "member"
+
+            results.append(
+                {
+                    "id": str(s.id),
+                    "name": s.name,
+                    "email": s.email,
+                    "position": position,
+                    "joinDate": s.created_at.isoformat(),
+                    "eventsAttended": len(s.attended_events or []),
+                }
+            )
+
+        # sort by hierarchy
+        results.sort(
+            key=lambda m: {"president": 0, "officer": 1, "member": 2}.get(m["position"], 3)
+        )
+
+        return jsonify(results)
+
+
+
+@api_bp.get("/clubs/<uuid:club_id>/events")
+def get_club_events(club_id):
+    """
+    Returns events for a given club, shaped for the ForOfficers UI.
+    """
+    upcoming = request.args.get("upcoming", "true").lower() != "false"
+
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        q = session.query(Event).filter(Event.club_id == club_id)
+
+        if upcoming:
+            q = q.filter(Event.start_time >= datetime.utcnow())
+
+        events = q.order_by(Event.start_time.asc()).all()
+
+        def fmt_time(dt):
+            # "7:00 PM" style
+            return dt.strftime("%-I:%M %p") if dt else None
+
+        payload = [
+            {
+                "id": str(e.id),
+                "name": e.title,
+                "description": e.description,
+                "date": e.start_time.date().isoformat() if e.start_time else None,
+                "time": fmt_time(e.start_time),
+                "startTime": e.start_time.isoformat() if e.start_time else None,
+                "location": e.location,
+                "capacity": e.rsvp_limit,
+                "registered": len(e.rsvp_ids or []),
+                "status": e.status,  # "draft" | "published" | "live"
+            }
+            for e in events
+        ]
+
+        return jsonify(payload)
+
+    """
+    Returns events for a given club, shaped for the ForOfficers UI.
+    """
+    upcoming = request.args.get("upcoming", "true").lower() != "false"
+
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        q = session.query(Event).filter(Event.club_id == club_id)
+
+        if upcoming:
+            q = q.filter(Event.start_time >= datetime.utcnow())
+
+        events = q.order_by(Event.start_time.asc()).all()
+
+        def fmt_time(dt):
+            # "7:00 PM" style
+            return dt.strftime("%-I:%M %p") if dt else None
+
+        payload = [
+            {
+                "id": str(e.id),
+                "name": e.title,
+                "date": e.start_time.date().isoformat() if e.start_time else None,
+                "time": fmt_time(e.start_time),
+                "location": e.location,
+                "capacity": e.rsvp_limit,
+                "registered": len(e.rsvp_ids or []),
+                "status": e.status,  # "draft" | "published" | "live"
+            }
+            for e in events
+        ]
+
+        return jsonify(payload)
+
 
 # ---------- User Registration and Login ----------------
 @api_bp.post("/auth/register")
@@ -118,50 +292,51 @@ def auth_register_route():
         password = (body.get("password") or "").strip()
         result = auth_register(name=name, email=email, password=password)
         
-        if os.getenv("ECN_EMAIL_MODE", "dev").lower() == "smtp":
-            #PRODUCT VERSION: sends the actual email
-            return jsonify({"ok": True, "user": result["user"]})
-        else:
-            #DEVELOPMENT VERSION: just returns a clickable url
-            return jsonify({"ok": True, "verifyUrl": result["verifyUrl"], "user": result["user"]})
+        return jsonify({"ok": True, "user": result["user"]})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    
+@api_bp.post("/auth/login")
+def auth_login_route():
+    """
+    DEV/DEMO LOGIN:
+    - Looks up Student by email (case-insensitive)
+    - Compares password to password_hash *as plain text*
+    - Does NOT check is_verified
+    """
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "")
+    #print(password)
 
-@api_bp.post("/auth/request-link")
-def auth_request_link():
-    #Resends verification link
-    try:
-        body = request.get_json(force=True) or {}
-        email = (body.get("email") or "").strip()
-        url = send_verification_link(email)
-        
-        if os.getenv("ECN_EMAIL_MODE", "dev").lower() == "smtp":
-            return jsonify({"ok": True})
-        else:
-            return jsonify({"ok": True, "verifyUrl": url})
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    if not email or not password:
+        return jsonify({"error": "missing_credentials"}), 400
 
-@api_bp.get("/auth/verify")
-def auth_verify():
-    #Endpoint the email link. Verifies user, sets cookie and then redirects to frontend
-    token = request.args.get("token", "")
-    try:
-        result = complete_verification(token)
-        resp = make_response(redirect(_FRONTEND_BASE))
-        resp.set_cookie(
-            auth_cookie_name(),
-            result["token"],
-            max_age=result["maxAge"],
-            httponly=True,
-            samesite="Lax",
-            secure= os.getenv("ECN_COOKIE_SECURE", "false").lower() == "true",
-            path="/",
+    with get_session() as session:
+        student = (
+            session.query(Student)
+            .filter(func.lower(Student.email) == email)
+            .one_or_none()
         )
-        return resp
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
 
+        if student is None:
+            # this is what currently maps to your "No account for this email" message
+            return jsonify({"error": "no account for email, please register"}), 404
+
+        # DEV: compare plain text password to password_hash column
+        if (student.password_hash or "") != password:
+            return jsonify({"error": "wrong password"}), 401
+
+        # success – return minimal user object
+        user_payload = {
+            "id": str(student.id),
+            "name": student.name,
+            "email": student.email,
+        }
+
+        return jsonify({"user": user_payload}), 200
+
+'''
 @api_bp.post("/auth/login")
 def auth_login_route():
     #Email + password login
@@ -194,7 +369,7 @@ def auth_me_route():
         return jsonify(result)
     except ValueError as e:
         return jsonify({"error": str(e)}), 401
-
+'''
 @api_bp.post("/auth/logout")
 def auth_logout_route():
     #Clears the cookie to log out
@@ -223,12 +398,66 @@ from models import Club
 @api_bp.get("/clubs/<uuid:club_id>/profile")
 def get_club_profile(club_id):
     """
-    Returns the editable profile for a single club.
+    Returns the editable profile for a single club + lightweight leadership info.
     """
+    from datetime import datetime  
+
     with get_session() as session:
         club = session.get(Club, club_id)
         if not club:
             return jsonify({"error": "Club not found"}), 404
+
+        # ---------- Leadership (president + officers) ----------
+        # President (first president role we find)
+        pres_row = (
+            session.query(OfficerRole, Student)
+            .join(Student, OfficerRole.student_id == Student.id)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.role == "president",
+            )
+            .first()
+        )
+
+        president = None
+        if pres_row:
+            pres_role, pres_student = pres_row
+            president = {
+                "name": pres_student.name,
+                "email": pres_student.email,
+            }
+
+        # Officers (role = "officer")
+        officer_rows = (
+            session.query(OfficerRole, Student)
+            .join(Student, OfficerRole.student_id == Student.id)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.role == "officer",
+            )
+            .all()
+        )
+
+        officers_list = [
+            {
+                "name": stu.name,
+                "email": stu.email,
+                "role": role.role.replace("_", " ").title(),  # e.g. "officer" -> "Officer"
+            }
+            for (role, stu) in officer_rows
+        ]
+
+        officers_payload = (
+            {
+                "president": president,
+                "officers": officers_list,
+            }
+            if (president or officers_list)
+            else None
+        )
+
+        # Optional generic meeting info (for demo purposes)
+        meeting_info = f"General meetings for {club.name} are scheduled by the officers. Check your email or website for details."
 
         payload = {
             "id": str(club.id),
@@ -246,9 +475,10 @@ def get_club_profile(club_id):
                 club.last_updated_at.isoformat() if club.last_updated_at else None
             ),
             "updateRecencyBadge": club.update_recency_badge,
+            "officers": officers_payload,
+            "meetingInfo": meeting_info,
         }
         return jsonify(payload)
-
 
 @api_bp.put("/clubs/<uuid:club_id>/profile")
 def update_club_profile(club_id):
@@ -336,3 +566,214 @@ def update_club_profile(club_id):
             "updateRecencyBadge": club.update_recency_badge,
         }
         return jsonify(payload)
+
+
+
+@api_bp.get("/users/<uuid:user_id>/officer-clubs")
+def get_user_officer_clubs(user_id):
+    """
+    Returns all clubs where this user is president / managing_exec / officer.
+    Shape:
+    [
+      { "id": "...", "name": "...", "verified": true },
+      ...
+    ]
+    """
+    with get_session() as session:
+        # Join OfficerRole -> Club, distinct by club
+        rows = (
+            session.query(Club)
+            .join(OfficerRole, OfficerRole.club_id == Club.id)
+            .filter(OfficerRole.student_id == user_id)
+            .filter(OfficerRole.role.in_(["president", "managing_exec", "officer"]))
+            .distinct(Club.id)
+            .all()
+        )
+
+        payload = [
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "verified": c.verified,
+            }
+            for c in rows
+        ]
+        return jsonify(payload)
+
+
+from sqlalchemy import func  # if not already imported
+# ...
+
+@api_bp.get("/students/<uuid:student_id>/officer-clubs")
+def get_officer_clubs(student_id):
+    """
+    Return all clubs where this student has an officer role
+    (president or officer).
+    """
+    with get_session() as session:
+        rows = (
+            session.query(OfficerRole, Club)
+            .join(Club, OfficerRole.club_id == Club.id)
+            .filter(
+                OfficerRole.student_id == student_id,
+                OfficerRole.role.in_(["president", "officer"]),
+            )
+            .all()
+        )
+
+        # de-duplicate clubs in case the student has multiple roles
+        clubs_by_id = {}
+        for role, club in rows:
+            if club.id not in clubs_by_id:
+                clubs_by_id[club.id] = {
+                    "id": str(club.id),
+                    "name": club.name,
+                    "verified": bool(club.verified),
+                    "role": role.role,  # "president" or "officer"
+                }
+
+        return jsonify(list(clubs_by_id.values()))
+
+
+@api_bp.put("/events/<uuid:event_id>")
+def update_event(event_id):
+    """
+    Update basic fields of an event.
+    Expects JSON body with optional:
+      - title
+      - description
+      - location
+      - capacity
+      - startTime (ISO)
+      - endTime (ISO)
+    """
+    body = request.get_json(force=True) or {}
+
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        if "title" in body:
+            event.title = body["title"]
+        if "description" in body:
+            event.description = body["description"]
+        if "location" in body:
+            event.location = body["location"]
+        if "capacity" in body:
+            event.rsvp_limit = body["capacity"]
+
+        if "startTime" in body:
+            event.start_time = _parse_iso_dt(body["startTime"])
+        if "endTime" in body:
+            event.end_time = _parse_iso_dt(body["endTime"])
+
+        session.add(event)
+        session.commit()
+
+        return jsonify({"ok": True})
+
+@api_bp.delete("/events/<uuid:event_id>")
+def delete_event(event_id):
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        session.delete(event)
+        session.commit()
+        return jsonify({"ok": True})
+
+from datetime import datetime
+from uuid import UUID
+
+from flask import Blueprint, request, jsonify
+from uuid import UUID
+from datetime import datetime
+
+from models import Student, Event, EventRsvp  # we don't need RsvpStatus here
+from db_ops import get_session
+
+
+
+from uuid import UUID
+from datetime import datetime
+
+from models import Student, Event, EventRsvp
+from db_ops import get_session
+
+
+from datetime import datetime
+from flask import current_app  # at top of routes.py if not already
+
+from db_ops import get_session
+from models import Student, Event, EventRsvp
+
+
+from uuid import UUID
+from datetime import datetime
+
+from flask import current_app
+from sqlalchemy import func
+
+from db_ops import get_session
+from models import Student, Event
+
+
+from uuid import UUID
+from datetime import datetime
+from db_ops import get_session
+from models import Event
+
+
+@api_bp.post("/events/<uuid:event_id>/rsvp")
+def toggle_event_rsvp(event_id):
+    """
+    MVP RSVP:
+    - expects a UUID string in userId / studentId
+    - toggles that UUID inside Event.rsvp_ids
+    - returns { rsvped, registered }
+    """
+    data = request.get_json(force=True) or {}
+    raw_id = (data.get("userId") or data.get("studentId") or "").strip()
+
+    if not raw_id:
+        return jsonify({"error": "missing_user_id"}), 400
+
+    # must be a valid UUID string
+    try:
+        user_uuid = UUID(raw_id)
+    except ValueError:
+        return jsonify(
+            {"error": "invalid_user_id", "detail": raw_id}
+        ), 400
+
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event:
+            return jsonify({"error": "event_not_found"}), 404
+
+        existing_ids = list(event.rsvp_ids or [])
+        existing_strs = {str(sid) for sid in existing_ids}
+        user_str = str(user_uuid)
+
+        if user_str in existing_strs:
+            # un-RSVP
+            new_ids = [sid for sid in existing_ids if str(sid) != user_str]
+            rsvped = False
+        else:
+            # RSVP
+            new_ids = existing_ids + [user_uuid]
+            rsvped = True
+
+        event.rsvp_ids = new_ids
+        event.updated_at = datetime.utcnow()
+        session.add(event)
+        session.commit()
+
+        return jsonify(
+            {
+                "rsvped": rsvped,
+                "registered": len(new_ids),
+            }
+        ), 200

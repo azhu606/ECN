@@ -5,29 +5,73 @@ import { useNavigate } from "react-router-dom";
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const generateCode = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+
+    if (!name.trim()) {
+      setErrorMessage("Please enter your name.");
+      return;
+    }
 
     if (!email.endsWith(".edu")) {
       setErrorMessage("Please register using an Emory (.edu) email.");
       return;
     }
 
-    const code = generateCode();
+    if (!password || !confirmPassword) {
+      setErrorMessage("Please enter and confirm your password.");
+      return;
+    }
 
-    navigate("/verify", { state: { email, code } });
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const res = await fetch("/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
+      });
+
+      if (!res.ok) {
+        // Try to read error message from backend if provided
+        let msg = "Failed to create account. Please try again.";
+        try {
+          const data = await res.json();
+          if (data?.message) msg = data.message;
+        } catch {
+          // ignore JSON parse errors, keep default message
+        }
+        setErrorMessage(msg);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Registration success — go back to Sign In
+      navigate("/signin", { state: { registeredEmail: email } });
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Unable to connect to the server. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -44,6 +88,21 @@ export default function SignUp() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* NAME FIELD */}
+          <div>
+            <label className="block text-gray-800 text-sm font-semibold mb-2">
+              Full Name
+            </label>
+            <Input
+              type="text"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-gray-300 rounded-md h-11 px-3 text-base"
+            />
+          </div>
+
+          {/* EMAIL FIELD */}
           <div>
             <label className="block text-gray-800 text-sm font-semibold mb-2">
               Emory Email
@@ -53,15 +112,43 @@ export default function SignUp() {
               placeholder="Enter your Emory (.edu) Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          {/* PASSWORD FIELD */}
+          <div>
+            <label className="block text-gray-800 text-sm font-semibold mb-2">
+              Create Password
+            </label>
+            <Input
+              type="password"
+              placeholder="Create a password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 rounded-md h-11 px-3 text-base"
+            />
+          </div>
+
+          {/* CONFIRM PASSWORD FIELD */}
+          <div>
+            <label className="block text-gray-800 text-sm font-semibold mb-2">
+              Confirm Password
+            </label>
+            <Input
+              type="password"
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full border border-gray-300 rounded-md h-11 px-3 text-base"
             />
           </div>
 
           <Button
             type="submit"
-            className="w-full h-11 bg-[#012169] text-white text-lg rounded-md hover:bg-[#0a2e6e] active:bg-[#001a57] transition-all font-semibold shadow-md"
+            disabled={isSubmitting}
+            className="w-full h-11 bg-[#012169] text-white text-lg rounded-md hover:bg-[#0a2e6e] active:bg-[#001a57] transition-all font-semibold shadow-md disabled:opacity-70"
           >
-            Send Verification Email
+            {isSubmitting ? "Creating..." : "Create Account"}
           </Button>
         </form>
 
