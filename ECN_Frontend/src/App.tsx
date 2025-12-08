@@ -26,7 +26,7 @@ export default function App() {
 
         <div className="flex flex-1">
           {/* Sidebar (only shows when logged in) */}
-          <Sidebar isLoggedIn={isLoggedIn} />
+
 
           <main className="flex-1">
             <Routes>
