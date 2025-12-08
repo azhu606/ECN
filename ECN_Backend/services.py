@@ -6,7 +6,6 @@ import difflib
 from sqlalchemy import func, or_
 import hmac, hashlib, base64, os, uuid, json, re
 from werkzeug.security import generate_password_hash, check_password_hash
-import smtplib, ssl
 from email.message import EmailMessage
 
 #New Configuration Constants, for email authoritization, cookie expiration, and login
@@ -327,125 +326,6 @@ def list_clubs(
 
         return {"items": items, "total": total}
 
-# =================== SPRINT 6 ADDITIONS =====================
-
-#EMAIL VERIFICATION METHODS
-def _encode_json(d: Dict[str, Any]) -> str:
-    #Not necessary. Just wanted to avoid whitespace and key-order issues
-    return json.dumps(d, separators=(",", ":"), sort_keys=True)
-
-def build_verify_token(email: str) -> str:
-    #Short email verification token, for "click to verify"
-    email = (email or "").strip().lower()
-    if not _is_emory_email(email):
-        raise ValueError("Please use an Emory email to use the Emory Core Nexus.")
-    exp = _now_ts() + (_VERIFY_TTL_MIN * 60)
-    payload = {"kind": "verify", "email": email, "exp": exp, "jti": str(uuid.uuid4())}
-    return _sign(_encode_json(payload))
-
-def parse_verify_token(token: str) -> Dict[str, Any]:
-    #Validate then parse link tokens. Part of the "click to verify"
-    raw = _unsign(token)
-    if not raw:
-        raise ValueError("Invalid or tampered token.")
-    try:
-        obj = json.loads(raw)
-    except json.JSONDecodeError:
-        raise ValueError("Malformed token.")
-    if obj.get("kind") != "verify":
-        raise ValueError("Wrong token type.")
-    if not isinstance(obj.get("email"), str) or not _is_emory_email(obj["email"]):
-        raise ValueError("Invalid email in token.")
-    if not isinstance(obj.get("exp"), int) or _now_ts() > obj["exp"]:
-        raise ValueError("Verification link expired.")
-    return obj
-
-#EMAILER
-def _send_email_smtp(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> None:
-    #Sends the email when in SMTP mode.
-    if not _SMTP_HOST or not _SMTP_USER or not _SMTP_PASS:
-        raise RuntimeError("SMTP is not configured. Set ECN_SMTP_HOST/USER/PASS.")
-
-    msg = EmailMessage()
-    from_header = f"{_EMAIL_FROM_NAME} <{_EMAIL_FROM}>"
-    msg["From"] = from_header
-    msg["To"] = to_email
-    msg["Subject"] = subject
-
-    if html_body:
-        # multipart/alternative (text and html)
-        msg.set_content(text_body)
-        msg.add_alternative(html_body, subtype="html")
-    else:
-        # text only
-        msg.set_content(text_body)
-
-    # STARTTLS (587) or SSL (465)
-    if _SMTP_PORT == 465:
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(_SMTP_HOST, _SMTP_PORT, context=context) as server:
-            server.login(_SMTP_USER, _SMTP_PASS)
-            server.send_message(msg)
-    else:
-        with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT) as server:
-            server.ehlo()
-            server.starttls(context=ssl.create_default_context())
-            server.ehlo()
-            server.login(_SMTP_USER, _SMTP_PASS)
-            server.send_message(msg)
-
-def send_verification_link(email: str) -> str:
-    #Generates the verification url, return it for dev
-    #send it for SMTP
-    email = (email or "").strip().lower()
-    if not email:
-        raise ValueError("Missing email.")
-    if not _is_emory_email(email):
-        raise ValueError("Please use an Emory email to use the Emory Core Nexus.")
-
-    token = build_verify_token(email)
-    verify_url = f"{_BACKEND_BASE}/api/auth/verify?token={token}"
-
-    # For dev mode, I made it so we only see the link. 
-    if _EMAIL_MODE.lower() != "smtp":
-        return verify_url
-
-    # Otherwise, actually send email
-    subject = "Verify your Emory Core Nexus account"
-    text = (
-        "Hi,\n\n"
-        "Please verify your Emory Core Nexus account by clicking the link below:\n"
-        f"{verify_url}\n\n"
-        f"This link expires in {_VERIFY_TTL_MIN} minutes.\n\n"
-        "If you did not request this, you can ignore this email."
-    )
-    html = """
-    <html>
-      <body style="font-family:Arial,Helvetica,sans-serif; line-height:1.5; color:#111;">
-        <p>Hi,</p>
-        <p>Please verify your Emory Core Nexus account by clicking the button below:</p>
-        <p>
-              <a href="{verify_url}"
-                 style="background:#0033a0;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;">
-                Verify my account
-              </a>
-        </p>
-        <p>If the button doesn’t work, copy and paste this URL into your browser:</p>
-        <p style="word-break:break-all;">
-          <a href="{verify_url}">{verify_url}</a>
-        </p>
-        <p style="color:#666;font-size:12px;">
-          This link expires in {_VERIFY_TTL_MIN} minutes.
-        </p>
-      </body>
-    </html>
-    """.format(
-        verify_url=verify_url,
-        _VERIFY_TTL_MIN=_VERIFY_TTL_MIN
-    )
-    _send_email_smtp(email, subject, text, html)
-    return "SENT"
-
 def auth_register(name: str, email: str, password: str) -> Dict[str, Any]:
     #Creates and updates a user. Stores password hash, marks verification and triggers the email
     name = (name or "").strip()
@@ -463,14 +343,14 @@ def auth_register(name: str, email: str, password: str) -> Dict[str, Any]:
             s.add(stu)
             s.flush()
         # Always (re)set password hash on register to what they provided now
-        stu.password_hash = generate_password_hash(password)
-        stu.is_verified = False
+        stu.password_hash = password
+        stu.is_verified = True
         user = _serialize_student(stu)
 
-    # Build verification link
-    verify_url = send_verification_link(email)
-    return {"user": user, "verifyUrl": verify_url}
-
+    issued = _now_ts()
+    session_token = _sign(f"{user['id']}|{user['email']}|{issued}")
+    return {"user": user, "token": session_token, "maxAge": _MAX_AGE}
+"""
 def complete_verification(token: str) -> Dict[str, Any]:
     #Consumes the clicked verification link and marks it verified.
     info = parse_verify_token(token)
@@ -491,8 +371,8 @@ def complete_verification(token: str) -> Dict[str, Any]:
     issued = _now_ts()
     session_token = _sign(f"{user['id']}|{user['email']}|{issued}")
     return {"user": user, "token": session_token, "maxAge": _MAX_AGE}
-
-#LOGIN METHOD, ONLY WORKS WHEN A USER IS VERIFIED:
+"""
+#LOGIN METHOD:
 
 def auth_login(email: str, password: str) -> Dict[str, Any]:
     #login for verified users. This is for all login post registration
@@ -507,10 +387,8 @@ def auth_login(email: str, password: str) -> Dict[str, Any]:
         stu = s.query(Student).filter(func.lower(Student.email) == email).one_or_none()
         if not stu or not stu.password_hash:
             raise ValueError("No account for this email. Please register.")
-        if not check_password_hash(stu.password_hash, password):
+        if (stu.password_hash or "") != password:
             raise ValueError("Incorrect email or password.")
-        if not stu.is_verified:
-            raise ValueError("Account not verified yet. Please check your email.")
         user = _serialize_student(stu)
 
     issued = _now_ts()
