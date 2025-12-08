@@ -1,12 +1,12 @@
-import React from "react";
-
-
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Search, Users, Calendar, Shield } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 export function Hero() {
+  const navigate = useNavigate();
+
   return (
     <section className="relative bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
@@ -32,32 +32,51 @@ export function Hero() {
                   placeholder="Search clubs, events, interests..." 
                   className="border-0 focus-visible:ring-0 bg-transparent"
                 />
-                <Button size="sm">Search</Button>
+                <Button size="sm" onClick={() => navigate("/discover")}>
+                  Search
+                </Button>
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Now Clickable */}
             <div className="flex items-center space-x-8 pt-4">
-              <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => navigate("/discover")}
+                className="flex items-center space-x-2 hover:text-[#012169] transition-colors"
+              >
                 <Users className="w-5 h-5 text-[#012169]" />
-                <span className="text-sm text-gray-600">500+ Active Clubs</span>
-              </div>
-              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 hover:text-[#012169]">500+ Active Clubs</span>
+              </button>
+              <button 
+                onClick={() => navigate("/events")}
+                className="flex items-center space-x-2 hover:text-[#012169] transition-colors"
+              >
                 <Calendar className="w-5 h-5 text-[#012169]" />
-                <span className="text-sm text-gray-600">Live Events Feed</span>
-              </div>
-              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 hover:text-[#012169]">Live Events Feed</span>
+              </button>
+              <button 
+                onClick={() => navigate("/discover?verified=true")}
+                className="flex items-center space-x-2 hover:text-[#012169] transition-colors"
+              >
                 <Shield className="w-5 h-5 text-[#012169]" />
-                <span className="text-sm text-gray-600">Verified Contacts</span>
-              </div>
+                <span className="text-sm text-gray-600 hover:text-[#012169]">Verified Contacts</span>
+              </button>
             </div>
 
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" className="bg-[#012169] hover:bg-[#001a5c]">
+              <Button 
+                size="lg" 
+                className="bg-[#012169] hover:bg-[#001a5c]"
+                onClick={() => navigate("/discover")}
+              >
                 Browse Clubs
               </Button>
-              <Button size="lg" variant="outline">
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => navigate("/events")}
+              >
                 Upcoming Events
               </Button>
             </div>
@@ -72,15 +91,21 @@ export function Hero() {
                 className="w-full h-full object-cover"
               />
             </div>
-            {/* Floating Elements */}
-            <div className="absolute -top-4 -right-4 bg-white p-4 rounded-lg shadow-lg">
+            {/* Floating Elements - Now Clickable */}
+            <button 
+              onClick={() => navigate("/events")}
+              className="absolute -top-4 -right-4 bg-white p-4 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+            >
               <div className="text-sm font-semibold text-gray-900">📅 This Week</div>
               <div className="text-xs text-gray-600">25 Events</div>
-            </div>
-            <div className="absolute -bottom-4 -left-4 bg-white p-4 rounded-lg shadow-lg">
+            </button>
+            <button 
+              onClick={() => navigate("/discover")}
+              className="absolute -bottom-4 -left-4 bg-white p-4 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+            >
               <div className="text-sm font-semibold text-gray-900">🎯 Perfect Match</div>
               <div className="text-xs text-gray-600">Based on your interests</div>
-            </div>
+            </button>
           </div>
         </div>
       </div>
