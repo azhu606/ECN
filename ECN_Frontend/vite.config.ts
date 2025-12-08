@@ -1,4 +1,3 @@
-// vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -59,10 +58,12 @@ export default defineConfig({
     open: true,
     proxy: {
       "/api": {
-        target: "127.0.0.1:5000",
+        // IMPORTANT: include protocol so Vite proxies correctly
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
-        // if your Flask app doesn't use a trailing slash behavior, keep rewrite as identity
-        // rewrite: (path) => path,
+        secure: false,
+        // we keep the path as-is: /api/... -> Flask /api/...
+        // no rewrite needed
       },
     },
   },

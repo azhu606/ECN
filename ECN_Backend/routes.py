@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, redirect
 from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, auth_register, auth_login, auth_me, auth_cookie_name, send_verification_link, complete_verification, _FRONTEND_BASE
 import os
 from db_ops import get_session
-from models import Club, Event
+from models import Club, Event, OfficerRole, Student
 
 api_bp = Blueprint("api", __name__)
 
@@ -223,12 +223,66 @@ from models import Club
 @api_bp.get("/clubs/<uuid:club_id>/profile")
 def get_club_profile(club_id):
     """
-    Returns the editable profile for a single club.
+    Returns the editable profile for a single club + lightweight leadership info.
     """
+    from datetime import datetime  
+
     with get_session() as session:
         club = session.get(Club, club_id)
         if not club:
             return jsonify({"error": "Club not found"}), 404
+
+        # ---------- Leadership (president + officers) ----------
+        # President (first president role we find)
+        pres_row = (
+            session.query(OfficerRole, Student)
+            .join(Student, OfficerRole.student_id == Student.id)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.role == "president",
+            )
+            .first()
+        )
+
+        president = None
+        if pres_row:
+            pres_role, pres_student = pres_row
+            president = {
+                "name": pres_student.name,
+                "email": pres_student.email,
+            }
+
+        # Officers (role = "officer")
+        officer_rows = (
+            session.query(OfficerRole, Student)
+            .join(Student, OfficerRole.student_id == Student.id)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.role == "officer",
+            )
+            .all()
+        )
+
+        officers_list = [
+            {
+                "name": stu.name,
+                "email": stu.email,
+                "role": role.role.replace("_", " ").title(),  # e.g. "officer" -> "Officer"
+            }
+            for (role, stu) in officer_rows
+        ]
+
+        officers_payload = (
+            {
+                "president": president,
+                "officers": officers_list,
+            }
+            if (president or officers_list)
+            else None
+        )
+
+        # Optional generic meeting info (for demo purposes)
+        meeting_info = f"General meetings for {club.name} are scheduled by the officers. Check your email or website for details."
 
         payload = {
             "id": str(club.id),
@@ -246,9 +300,10 @@ def get_club_profile(club_id):
                 club.last_updated_at.isoformat() if club.last_updated_at else None
             ),
             "updateRecencyBadge": club.update_recency_badge,
+            "officers": officers_payload,
+            "meetingInfo": meeting_info,
         }
         return jsonify(payload)
-
 
 @api_bp.put("/clubs/<uuid:club_id>/profile")
 def update_club_profile(club_id):
