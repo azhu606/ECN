@@ -709,6 +709,494 @@ from flask import current_app  # at top of routes.py if not already
 from db_ops import get_session
 from models import Student, Event, EventRsvp
 
+# ============================================================
+# MY CLUBS ENDPOINTS - Add these to your routes.py
+# ============================================================
+# Add these imports at the top of routes.py if not already present:
+# from models import Student, Club, Event, OfficerRole, EventRsvp
+# from db_ops import get_session
+# from datetime import datetime
+# from sqlalchemy import func
+# ============================================================
+
+# ---------- My Clubs Endpoints ----------
+
+@api_bp.get("/students/<uuid:student_id>/my-clubs")
+def get_student_my_clubs(student_id):
+    """
+    Returns all clubs a student has joined, with engagement metrics and upcoming events.
+    
+    Response shape:
+    [
+      {
+        "id": "uuid",
+        "name": "Club Name",
+        "role": "Member" | "Officer" | "President",
+        "joinDate": "2024-01-15T00:00:00",
+        "category": "Academic",
+        "verified": true,
+        "lastActivity": "2 hours ago",
+        "memberCount": 150,
+        "engagement": 85,
+        "nextEvent": {
+          "id": "uuid",
+          "name": "Event Name",
+          "date": "Oct 20",
+          "time": "7:00 PM"
+        },
+        "recentActivity": [
+          {"type": "event", "title": "...", "time": "3 hours ago"}
+        ]
+      }
+    ]
+    """
+    from datetime import datetime, timedelta
+    
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "Student not found"}), 404
+        
+        # Get club IDs from student's my_clubs array
+        club_ids = student.my_clubs or []
+        
+        if not club_ids:
+            return jsonify([])
+        
+        # Fetch all clubs
+        clubs = session.query(Club).filter(Club.id.in_(club_ids)).all()
+        
+        # Get officer roles for this student
+        officer_roles = (
+            session.query(OfficerRole)
+            .filter(
+                OfficerRole.student_id == student_id,
+                OfficerRole.club_id.in_(club_ids)
+            )
+            .all()
+        )
+        
+        # Build role lookup: club_id -> role
+        role_lookup = {}
+        for r in officer_roles:
+            # Prioritize higher roles
+            current = role_lookup.get(r.club_id)
+            if r.role == "president":
+                role_lookup[r.club_id] = "President"
+            elif r.role in ("managing_exec", "officer") and current != "President":
+                role_lookup[r.club_id] = "Officer"
+        
+        results = []
+        now = datetime.utcnow()
+        
+        for club in clubs:
+            # Determine role
+            role = role_lookup.get(club.id, "Member")
+            
+            # Get member count
+            member_count = len(club.member_ids or [])
+            
+            # Get upcoming events for this club
+            upcoming_events = (
+                session.query(Event)
+                .filter(
+                    Event.club_id == club.id,
+                    Event.start_time >= now
+                )
+                .order_by(Event.start_time.asc())
+                .limit(3)
+                .all()
+            )
+            
+            # Get recent events (past 30 days) for activity
+            recent_events = (
+                session.query(Event)
+                .filter(
+                    Event.club_id == club.id,
+                    Event.start_time >= now - timedelta(days=30)
+                )
+                .order_by(Event.start_time.desc())
+                .limit(5)
+                .all()
+            )
+            
+            # Calculate engagement score based on student's participation
+            student_rsvped = student.rsvped_events or []
+            student_attended = student.attended_events or []
+            club_event_ids = [e.id for e in recent_events]
+            
+            rsvped_count = len([eid for eid in student_rsvped if eid in club_event_ids])
+            attended_count = len([eid for eid in student_attended if eid in club_event_ids])
+            
+            if len(club_event_ids) > 0:
+                engagement = min(100, int((attended_count / len(club_event_ids)) * 100 + (rsvped_count * 10)))
+            else:
+                engagement = 50  # Default for clubs with no recent events
+            
+            # Format next event
+            next_event = None
+            if upcoming_events:
+                e = upcoming_events[0]
+                next_event = {
+                    "id": str(e.id),
+                    "name": e.title,
+                    "date": e.start_time.strftime("%b %d") if e.start_time else None,
+                    "time": e.start_time.strftime("%-I:%M %p") if e.start_time else None,
+                }
+            
+            # Build recent activity from events
+            recent_activity = []
+            for e in recent_events[:3]:
+                time_diff = now - e.start_time if e.start_time < now else e.start_time - now
+                if time_diff.days > 0:
+                    time_str = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                elif time_diff.seconds > 3600:
+                    hours = time_diff.seconds // 3600
+                    time_str = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                else:
+                    time_str = "Recently"
+                
+                activity_type = "event" if e.start_time >= now else "update"
+                recent_activity.append({
+                    "type": activity_type,
+                    "title": e.title,
+                    "time": time_str,
+                })
+            
+            # Calculate last activity time
+            if club.updated_at:
+                time_diff = now - club.updated_at
+                if time_diff.days > 0:
+                    last_activity = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                elif time_diff.seconds > 3600:
+                    hours = time_diff.seconds // 3600
+                    last_activity = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                else:
+                    last_activity = "Recently"
+            else:
+                last_activity = "Unknown"
+            
+            results.append({
+                "id": str(club.id),
+                "name": club.name,
+                "role": role,
+                "joinDate": student.created_at.isoformat() if student.created_at else None,
+                "category": "General",  # You may want to add a category field to Club model
+                "verified": club.verified,
+                "lastActivity": last_activity,
+                "memberCount": member_count,
+                "engagement": engagement,
+                "nextEvent": next_event,
+                "recentActivity": recent_activity,
+            })
+        
+        # Sort by role priority (President > Officer > Member)
+        role_priority = {"President": 0, "Officer": 1, "Member": 2}
+        results.sort(key=lambda x: role_priority.get(x["role"], 3))
+        
+        return jsonify(results)
+
+
+@api_bp.get("/students/<uuid:student_id>/upcoming-events")
+def get_student_upcoming_events(student_id):
+    """
+    Returns all upcoming events from clubs the student has joined.
+    """
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "Student not found"}), 404
+        
+        club_ids = student.my_clubs or []
+        
+        if not club_ids:
+            return jsonify([])
+        
+        now = datetime.utcnow()
+        
+        # Get upcoming events from student's clubs
+        events = (
+            session.query(Event, Club)
+            .join(Club, Event.club_id == Club.id)
+            .filter(
+                Event.club_id.in_(club_ids),
+                Event.start_time >= now
+            )
+            .order_by(Event.start_time.asc())
+            .limit(20)
+            .all()
+        )
+        
+        # Check which events student has RSVPed to
+        student_rsvped = set(student.rsvped_events or [])
+        
+        results = []
+        for event, club in events:
+            results.append({
+                "id": str(event.id),
+                "name": event.title,
+                "description": event.description,
+                "clubId": str(club.id),
+                "clubName": club.name,
+                "date": event.start_time.strftime("%b %d") if event.start_time else None,
+                "time": event.start_time.strftime("%-I:%M %p") if event.start_time else None,
+                "startTime": event.start_time.isoformat() if event.start_time else None,
+                "location": event.location,
+                "capacity": event.rsvp_limit,
+                "registered": len(event.rsvp_ids or []),
+                "isRsvped": event.id in student_rsvped,
+            })
+        
+        return jsonify(results)
+
+
+@api_bp.get("/students/<uuid:student_id>/stats")
+def get_student_stats(student_id):
+    """
+    Returns aggregated stats for the student's club memberships.
+    """
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "Student not found"}), 404
+        
+        club_ids = student.my_clubs or []
+        clubs_joined = len(club_ids)
+        
+        # Count leadership roles
+        leadership_roles = (
+            session.query(OfficerRole)
+            .filter(
+                OfficerRole.student_id == student_id,
+                OfficerRole.role.in_(["president", "managing_exec", "officer"])
+            )
+            .count()
+        )
+        
+        # Count upcoming events from student's clubs
+        now = datetime.utcnow()
+        upcoming_events = 0
+        if club_ids:
+            upcoming_events = (
+                session.query(Event)
+                .filter(
+                    Event.club_id.in_(club_ids),
+                    Event.start_time >= now
+                )
+                .count()
+            )
+        
+        # Calculate average engagement (simplified)
+        attended = len(student.attended_events or [])
+        rsvped = len(student.rsvped_events or [])
+        avg_engagement = min(100, int((attended + rsvped) * 5)) if (attended + rsvped) > 0 else 50
+        
+        return jsonify({
+            "clubsJoined": clubs_joined,
+            "upcomingEvents": upcoming_events,
+            "leadershipRoles": leadership_roles,
+            "avgEngagement": avg_engagement,
+        })
+
+
+@api_bp.post("/clubs/<uuid:club_id>/join")
+def join_club(club_id):
+    """
+    Add a student to a club's member list.
+    
+    Request JSON:
+      { "userId": "<student_uuid>" }
+    
+    Response:
+      201 { "joined": true, "memberCount": <int> }
+    """
+    data = request.get_json(force=True) or {}
+    student_id = data.get("userId") or data.get("studentId")
+    
+    if not student_id:
+        return jsonify({"error": "missing_user_id", "detail": "userId is required"}), 400
+    
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "student_not_found"}), 404
+        
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "club_not_found"}), 404
+        
+        # Check if already a member
+        student_clubs = list(student.my_clubs or [])
+        club_members = list(club.member_ids or [])
+        
+        if club.id in student_clubs:
+            return jsonify({"error": "already_member", "detail": "Student is already a member of this club"}), 400
+        
+        # Add to both arrays
+        student_clubs.append(club.id)
+        club_members.append(student.id)
+        
+        student.my_clubs = student_clubs
+        club.member_ids = club_members
+        
+        session.add(student)
+        session.add(club)
+        session.commit()
+        
+        return jsonify({
+            "joined": True,
+            "memberCount": len(club_members),
+        }), 201
+
+
+@api_bp.post("/clubs/<uuid:club_id>/leave")
+def leave_club(club_id):
+    """
+    Remove a student from a club's member list.
+    
+    Request JSON:
+      { "userId": "<student_uuid>" }
+    
+    Response:
+      200 { "left": true, "memberCount": <int> }
+    """
+    data = request.get_json(force=True) or {}
+    student_id = data.get("userId") or data.get("studentId")
+    
+    if not student_id:
+        return jsonify({"error": "missing_user_id", "detail": "userId is required"}), 400
+    
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "student_not_found"}), 404
+        
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "club_not_found"}), 404
+        
+        # Check if student is an officer/president - they cannot leave without transferring role
+        officer_role = (
+            session.query(OfficerRole)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.student_id == student_id,
+                OfficerRole.role.in_(["president", "managing_exec"])
+            )
+            .first()
+        )
+        
+        if officer_role:
+            return jsonify({
+                "error": "cannot_leave",
+                "detail": "You must transfer your leadership role before leaving the club"
+            }), 400
+        
+        # Remove from both arrays
+        student_clubs = [cid for cid in (student.my_clubs or []) if cid != club.id]
+        club_members = [sid for sid in (club.member_ids or []) if sid != student.id]
+        
+        # Also remove from officer arrays if applicable
+        club_officers = [sid for sid in (club.officers or []) if sid != student.id]
+        
+        # Remove from favorite clubs if present
+        favorite_clubs = [cid for cid in (student.favorite_clubs or []) if cid != club.id]
+        officer_clubs = [cid for cid in (student.officer_clubs or []) if cid != club.id]
+        
+        student.my_clubs = student_clubs
+        student.favorite_clubs = favorite_clubs
+        student.officer_clubs = officer_clubs
+        club.member_ids = club_members
+        club.officers = club_officers
+        
+        # Remove officer role if exists (for regular officer)
+        regular_officer = (
+            session.query(OfficerRole)
+            .filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.student_id == student_id
+            )
+            .first()
+        )
+        if regular_officer:
+            session.delete(regular_officer)
+        
+        session.add(student)
+        session.add(club)
+        session.commit()
+        
+        return jsonify({
+            "left": True,
+            "memberCount": len(club_members),
+        }), 200
+
+
+@api_bp.get("/students/<uuid:student_id>/recent-activity")
+def get_student_recent_activity(student_id):
+    """
+    Returns recent activity across all of the student's clubs.
+    """
+    from datetime import timedelta
+    
+    with get_session() as session:
+        student = session.get(Student, student_id)
+        if not student:
+            return jsonify({"error": "Student not found"}), 404
+        
+        club_ids = student.my_clubs or []
+        
+        if not club_ids:
+            return jsonify([])
+        
+        now = datetime.utcnow()
+        
+        # Get recent events from student's clubs (past 30 days and upcoming)
+        events = (
+            session.query(Event, Club)
+            .join(Club, Event.club_id == Club.id)
+            .filter(
+                Event.club_id.in_(club_ids),
+                Event.start_time >= now - timedelta(days=30)
+            )
+            .order_by(Event.updated_at.desc())
+            .limit(10)
+            .all()
+        )
+        
+        results = []
+        for event, club in events:
+            # Determine time string
+            if event.updated_at:
+                time_diff = now - event.updated_at
+                if time_diff.days > 0:
+                    time_str = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                elif time_diff.seconds > 3600:
+                    hours = time_diff.seconds // 3600
+                    time_str = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                else:
+                    minutes = max(1, time_diff.seconds // 60)
+                    time_str = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+            else:
+                time_str = "Recently"
+            
+            # Determine activity type
+            if event.start_time > now:
+                activity_type = "event"
+                title = f"{event.title} scheduled"
+            else:
+                activity_type = "update"
+                title = event.title
+            
+            results.append({
+                "id": str(event.id),
+                "type": activity_type,
+                "title": title,
+                "clubId": str(club.id),
+                "clubName": club.name,
+                "time": time_str,
+            })
+        
+        return jsonify(results)
 
 @api_bp.post("/events/<uuid:event_id>/rsvp")
 def toggle_event_rsvp(event_id):

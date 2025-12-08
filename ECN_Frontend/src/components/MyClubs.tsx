@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -13,17 +13,36 @@ import {
   Settings,
   Star,
   CheckCircle,
-  Clock,
-  MapPin,
   TrendingUp,
   Heart,
   MessageSquare,
   Lock,
   ShieldAlert,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { getCurrentUserId } from "../authSession";
 
-const userId = getCurrentUserId();
+// ============================================================
+// API CONFIGURATION & TYPES
+// ============================================================
+
+const API_BASE = "/api"; // Adjust if your API has a different base URL
+
+// Types
+interface ClubNextEvent {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+}
+
+interface ClubActivity {
+  type: "event" | "announcement" | "update";
+  title: string;
+  time: string;
+}
 
 interface UserClub {
   id: string;
@@ -35,143 +54,150 @@ interface UserClub {
   lastActivity: string;
   memberCount: number;
   engagement: number;
-  nextEvent?: {
-    name: string;
-    date: string;
-    time: string;
-  };
-  recentActivity: {
-    type: "event" | "announcement" | "update";
-    title: string;
-    time: string;
-  }[];
+  nextEvent?: ClubNextEvent;
+  recentActivity: ClubActivity[];
 }
 
-interface Notification {
+interface UpcomingEvent {
   id: string;
-  club: string;
-  type: "event" | "announcement" | "reminder";
-  title: string;
-  message: string;
+  name: string;
+  description?: string;
+  clubId: string;
+  clubName: string;
+  date: string;
   time: string;
-  read: boolean;
+  startTime: string;
+  location?: string;
+  capacity?: number;
+  registered: number;
+  isRsvped: boolean;
 }
 
-const userClubs: UserClub[] = [
-  {
-    id: "1",
-    name: "Pre-Medical Society",
-    role: "Officer",
-    joinDate: "2023-09-15",
-    category: "Academic",
-    verified: true,
-    lastActivity: "2 hours ago",
-    memberCount: 180,
-    engagement: 85,
-    nextEvent: {
-      name: "Medical School Panel",
-      date: "Oct 20",
-      time: "7:00 PM",
-    },
-    recentActivity: [
-      {
-        type: "event",
-        title: "MCAT Study Group scheduled",
-        time: "3 hours ago",
-      },
-      {
-        type: "announcement",
-        title: "Research opportunities posted",
-        time: "1 day ago",
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Computer Science Society",
-    role: "Member",
-    joinDate: "2023-08-28",
-    category: "Academic",
-    verified: true,
-    lastActivity: "5 hours ago",
-    memberCount: 200,
-    engagement: 72,
-    nextEvent: {
-      name: "Google Tech Talk",
-      date: "Oct 21",
-      time: "5:30 PM",
-    },
-    recentActivity: [
-      {
-        type: "event",
-        title: "Hackathon registration opens",
-        time: "6 hours ago",
-      },
-      {
-        type: "update",
-        title: "New job postings available",
-        time: "2 days ago",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Sustainability Action Network",
-    role: "Member",
-    joinDate: "2024-01-20",
-    category: "Environmental",
-    verified: true,
-    lastActivity: "1 day ago",
-    memberCount: 95,
-    engagement: 68,
-    nextEvent: {
-      name: "Campus Composting Workshop",
-      date: "Oct 23",
-      time: "3:00 PM",
-    },
-    recentActivity: [
-      {
-        type: "announcement",
-        title: "Earth Week planning meeting",
-        time: "1 day ago",
-      },
-      { type: "event", title: "Recycling drive scheduled", time: "3 days ago" },
-    ],
-  },
-];
+interface UserStats {
+  clubsJoined: number;
+  upcomingEvents: number;
+  leadershipRoles: number;
+  avgEngagement: number;
+}
 
-const notifications: Notification[] = [
-  {
-    id: "1",
-    club: "Pre-Medical Society",
-    type: "reminder",
-    title: "Meeting Tomorrow",
-    message:
-      "Don't forget about the executive board meeting tomorrow at 6 PM in the Chemistry Building.",
-    time: "2 hours ago",
-    read: false,
-  },
-  {
-    id: "2",
-    club: "Computer Science Society",
-    type: "event",
-    title: "New Event: Google Tech Talk",
-    message:
-      "A Google engineer will be speaking about AI applications in healthcare. RSVP now!",
-    time: "5 hours ago",
-    read: false,
-  },
-  {
-    id: "3",
-    club: "Sustainability Action Network",
-    type: "announcement",
-    title: "Volunteer Opportunity",
-    message:
-      "Help us plant trees on campus this Saturday. Sign up link in the club portal.",
-    time: "1 day ago",
-    read: true,
-  },
-];
+interface RecentActivity {
+  id: string;
+  type: "event" | "announcement" | "update";
+  title: string;
+  clubId: string;
+  clubName: string;
+  time: string;
+}
+
+// ============================================================
+// API FUNCTIONS
+// ============================================================
+
+/**
+ * Fetch all clubs the user has joined
+ */
+async function fetchMyClubs(userId: string): Promise<UserClub[]> {
+  const response = await fetch(`${API_BASE}/students/${userId}/my-clubs`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to fetch clubs");
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch upcoming events from user's clubs
+ */
+async function fetchUpcomingEvents(userId: string): Promise<UpcomingEvent[]> {
+  const response = await fetch(`${API_BASE}/students/${userId}/upcoming-events`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to fetch events");
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch user stats (clubs joined, upcoming events, leadership roles, etc.)
+ */
+async function fetchUserStats(userId: string): Promise<UserStats> {
+  const response = await fetch(`${API_BASE}/students/${userId}/stats`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to fetch stats");
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch recent activity across user's clubs
+ */
+async function fetchRecentActivity(userId: string): Promise<RecentActivity[]> {
+  const response = await fetch(`${API_BASE}/students/${userId}/recent-activity`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to fetch activity");
+  }
+
+  return response.json();
+}
+
+/**
+ * Leave a club
+ */
+async function leaveClub(
+  clubId: string,
+  userId: string
+): Promise<{ left: boolean; memberCount: number }> {
+  const response = await fetch(`${API_BASE}/clubs/${clubId}/leave`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || error.error || "Failed to leave club");
+  }
+
+  return response.json();
+}
+
+/**
+ * RSVP to an event (toggle)
+ */
+async function toggleEventRsvp(
+  eventId: string,
+  userId: string
+): Promise<{ rsvped: boolean; registered: number }> {
+  const response = await fetch(`${API_BASE}/events/${eventId}/rsvp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || error.error || "Failed to update RSVP");
+  }
+
+  return response.json();
+}
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 interface MyClubsProps {
   isLoggedIn: boolean;
@@ -179,7 +205,105 @@ interface MyClubsProps {
 
 export function MyClubs({ isLoggedIn }: MyClubsProps) {
   const navigate = useNavigate();
-  const [unreadCount] = useState(notifications.filter((n) => !n.read).length);
+  const userId = getCurrentUserId();
+
+  // State for API data
+  const [userClubs, setUserClubs] = useState<UserClub[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Fetch all data
+  const loadData = useCallback(async () => {
+    if (!userId) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [clubsData, eventsData, statsData, activityData] = await Promise.all([
+        fetchMyClubs(userId),
+        fetchUpcomingEvents(userId),
+        fetchUserStats(userId),
+        fetchRecentActivity(userId),
+      ]);
+
+      setUserClubs(clubsData);
+      setUpcomingEvents(eventsData);
+      setUserStats(statsData);
+      setRecentActivity(activityData);
+    } catch (err) {
+      console.error("Failed to load My Clubs data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  // Load data on mount
+  useEffect(() => {
+    if (isLoggedIn && userId) {
+      loadData();
+    }
+  }, [isLoggedIn, userId, loadData]);
+
+  // Handle leaving a club
+  const handleLeaveClub = async (clubId: string, clubName: string) => {
+    if (!userId) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to leave "${clubName}"? You can rejoin later from the Discover page.`
+    );
+
+    if (!confirmed) return;
+
+    setActionLoading(clubId);
+    try {
+      await leaveClub(clubId, userId);
+      // Remove club from local state
+      setUserClubs((prev) => prev.filter((c) => c.id !== clubId));
+      // Update stats
+      if (userStats) {
+        setUserStats({
+          ...userStats,
+          clubsJoined: userStats.clubsJoined - 1,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to leave club:", err);
+      alert(err instanceof Error ? err.message : "Failed to leave club");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle RSVP toggle
+  const handleRsvpToggle = async (eventId: string) => {
+    if (!userId) return;
+
+    setActionLoading(eventId);
+    try {
+      const result = await toggleEventRsvp(eventId, userId);
+      // Update local state
+      setUpcomingEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? { ...e, isRsvped: result.rsvped, registered: result.registered }
+            : e
+        )
+      );
+    } catch (err) {
+      console.error("Failed to toggle RSVP:", err);
+      alert(err instanceof Error ? err.message : "Failed to update RSVP");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   // If not logged in, show authentication prompt
   if (!isLoggedIn) {
@@ -244,6 +368,39 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
     );
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-[#012169] mx-auto" />
+          <p className="text-gray-600">Loading your clubs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+            <h2 className="text-xl font-semibold text-gray-900">
+              Failed to Load
+            </h2>
+            <p className="text-gray-600">{error}</p>
+            <Button onClick={loadData} className="mt-4">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case "President":
@@ -283,10 +440,14 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <div className="text-2xl font-bold text-[#012169]">
-                  {userClubs.length}
+                  {userStats?.clubsJoined ?? userClubs.length}
                 </div>
                 <div className="text-sm text-gray-500">Active Memberships</div>
               </div>
+              <Button onClick={loadData} variant="outline" size="sm">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
               <Button>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
@@ -299,19 +460,13 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="clubs">
               My Clubs ({userClubs.length})
             </TabsTrigger>
-            <TabsTrigger value="events">Events</TabsTrigger>
-            <TabsTrigger value="notifications" className="relative">
-              Notifications
-              {unreadCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 px-1 py-0 text-xs min-w-[1.25rem] h-5">
-                  {unreadCount}
-                </Badge>
-              )}
+            <TabsTrigger value="events">
+              Events ({upcomingEvents.length})
             </TabsTrigger>
           </TabsList>
 
@@ -325,7 +480,7 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                     <Users className="w-5 h-5 text-[#012169]" />
                     <div>
                       <div className="text-2xl font-bold">
-                        {userClubs.length}
+                        {userStats?.clubsJoined ?? userClubs.length}
                       </div>
                       <div className="text-sm text-gray-500">Clubs Joined</div>
                     </div>
@@ -338,7 +493,9 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                   <div className="flex items-center space-x-2">
                     <Calendar className="w-5 h-5 text-green-600" />
                     <div>
-                      <div className="text-2xl font-bold">3</div>
+                      <div className="text-2xl font-bold">
+                        {userStats?.upcomingEvents ?? upcomingEvents.length}
+                      </div>
                       <div className="text-sm text-gray-500">
                         Upcoming Events
                       </div>
@@ -352,9 +509,11 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                   <div className="flex items-center space-x-2">
                     <Star className="w-5 h-5 text-yellow-500" />
                     <div>
-                      <div className="text-2xl font-bold">1</div>
+                      <div className="text-2xl font-bold">
+                        {userStats?.leadershipRoles ?? 0}
+                      </div>
                       <div className="text-sm text-gray-500">
-                        Leadership Role
+                        Leadership Roles
                       </div>
                     </div>
                   </div>
@@ -366,7 +525,9 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                   <div className="flex items-center space-x-2">
                     <TrendingUp className="w-5 h-5 text-blue-600" />
                     <div>
-                      <div className="text-2xl font-bold">75%</div>
+                      <div className="text-2xl font-bold">
+                        {userStats?.avgEngagement ?? 0}%
+                      </div>
                       <div className="text-sm text-gray-500">
                         Avg Engagement
                       </div>
@@ -376,18 +537,41 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
               </Card>
             </div>
 
-            {/* Recent Activity */}
-            <div className="grid lg:grid-cols-2 gap-6">
+            {/* Empty State */}
+            {userClubs.length === 0 && (
               <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {userClubs
-                    .flatMap((club) =>
-                      club.recentActivity.map((activity, idx) => (
+                <CardContent className="p-12 text-center">
+                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    No Clubs Yet
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    You haven't joined any clubs yet. Discover clubs that match
+                    your interests!
+                  </p>
+                  <Button onClick={() => navigate("/discover")}>
+                    Browse Clubs
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Activity & Upcoming Events */}
+            {userClubs.length > 0 && (
+              <div className="grid lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {recentActivity.length === 0 ? (
+                      <p className="text-gray-500 text-sm py-4 text-center">
+                        No recent activity
+                      </p>
+                    ) : (
+                      recentActivity.slice(0, 5).map((activity) => (
                         <div
-                          key={`${club.id}-${idx}`}
+                          key={activity.id}
                           className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50"
                         >
                           {getActivityIcon(activity.type)}
@@ -396,137 +580,191 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                               {activity.title}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {club.name} • {activity.time}
+                              {activity.clubName} • {activity.time}
                             </div>
                           </div>
                         </div>
                       ))
-                    )
-                    .slice(0, 5)}
-                </CardContent>
-              </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Events</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {userClubs
-                    .filter((club) => club.nextEvent)
-                    .map((club) => (
-                      <div
-                        key={club.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-blue-50"
-                      >
-                        <div>
-                          <div className="font-medium">
-                            {club.nextEvent!.name}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Upcoming Events</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {upcomingEvents.length === 0 ? (
+                      <p className="text-gray-500 text-sm py-4 text-center">
+                        No upcoming events
+                      </p>
+                    ) : (
+                      upcomingEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-blue-50"
+                        >
+                          <div>
+                            <div className="font-medium">{event.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {event.clubName}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {event.date} at {event.time}
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            {club.name}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {club.nextEvent!.date} at {club.nextEvent!.time}
-                          </div>
+                          <Button
+                            size="sm"
+                            variant={event.isRsvped ? "default" : "outline"}
+                            onClick={() => handleRsvpToggle(event.id)}
+                            disabled={actionLoading === event.id}
+                          >
+                            {actionLoading === event.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Heart
+                                  className={`w-3 h-3 mr-1 ${
+                                    event.isRsvped ? "fill-current" : ""
+                                  }`}
+                                />
+                                {event.isRsvped ? "RSVPed" : "RSVP"}
+                              </>
+                            )}
+                          </Button>
                         </div>
-                        <Button size="sm" variant="outline">
-                          <Heart className="w-3 h-3 mr-1" />
-                          RSVP
-                        </Button>
-                      </div>
-                    ))}
-                </CardContent>
-              </Card>
-            </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </TabsContent>
 
           {/* Clubs Tab */}
           <TabsContent value="clubs" className="space-y-6">
-            <div className="grid gap-6">
-              {userClubs.map((club) => (
-                <Card
-                  key={club.id}
-                  className="hover:shadow-lg transition-shadow duration-200"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <Avatar className="w-12 h-12">
-                          <AvatarFallback className="bg-[#012169] text-white">
-                            {club.name.substring(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
+            {userClubs.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    No Clubs Yet
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    You haven't joined any clubs yet. Discover clubs that match
+                    your interests!
+                  </p>
+                  <Button onClick={() => navigate("/discover")}>
+                    Browse Clubs
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6">
+                {userClubs.map((club) => (
+                  <Card
+                    key={club.id}
+                    className="hover:shadow-lg transition-shadow duration-200"
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4">
+                          <Avatar className="w-12 h-12">
+                            <AvatarFallback className="bg-[#012169] text-white">
+                              {club.name.substring(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
 
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-xl font-semibold">
-                              {club.name}
-                            </h3>
-                            {club.verified && (
-                              <CheckCircle className="w-5 h-5 text-green-500" />
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <h3 className="text-xl font-semibold">
+                                {club.name}
+                              </h3>
+                              {club.verified && (
+                                <CheckCircle className="w-5 h-5 text-green-500" />
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-4 text-sm text-gray-500">
+                              <Badge className={getRoleColor(club.role)}>
+                                {club.role}
+                              </Badge>
+                              <span>
+                                Joined{" "}
+                                {new Date(club.joinDate).toLocaleDateString()}
+                              </span>
+                              <span>{club.memberCount} members</span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span>Engagement Score</span>
+                                <span className="font-medium">
+                                  {club.engagement}%
+                                </span>
+                              </div>
+                              <Progress
+                                value={club.engagement}
+                                className="w-48"
+                              />
+                            </div>
+
+                            {club.nextEvent && (
+                              <div className="bg-blue-50 p-3 rounded-md">
+                                <div className="text-sm font-medium text-blue-900">
+                                  Next Event
+                                </div>
+                                <div className="text-sm text-blue-700">
+                                  {club.nextEvent.name}
+                                </div>
+                                <div className="text-xs text-blue-600">
+                                  {club.nextEvent.date} at {club.nextEvent.time}
+                                </div>
+                              </div>
                             )}
                           </div>
+                        </div>
 
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <Badge className={getRoleColor(club.role)}>
-                              {club.role}
-                            </Badge>
-                            <span>
-                              Joined{" "}
-                              {new Date(club.joinDate).toLocaleDateString()}
-                            </span>
-                            <span>{club.memberCount} members</span>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span>Engagement Score</span>
-                              <span className="font-medium">
-                                {club.engagement}%
-                              </span>
-                            </div>
-                            <Progress
-                              value={club.engagement}
-                              className="w-48"
-                            />
-                          </div>
-
-                          {club.nextEvent && (
-                            <div className="bg-blue-50 p-3 rounded-md">
-                              <div className="text-sm font-medium text-blue-900">
-                                Next Event
-                              </div>
-                              <div className="text-sm text-blue-700">
-                                {club.nextEvent.name}
-                              </div>
-                              <div className="text-xs text-blue-600">
-                                {club.nextEvent.date} at {club.nextEvent.time}
-                              </div>
-                            </div>
+                        <div className="flex flex-col space-y-2">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/clubs/${club.id}/manage`)
+                            }
+                          >
+                            Manage
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/clubs/${club.id}`)}
+                          >
+                            View Details
+                          </Button>
+                          {club.role === "Member" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() =>
+                                handleLeaveClub(club.id, club.name)
+                              }
+                              disabled={actionLoading === club.id}
+                            >
+                              {actionLoading === club.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Leave Club"
+                              )}
+                            </Button>
                           )}
                         </div>
                       </div>
-
-                      <div className="flex flex-col space-y-2">
-                        <Button size="sm">Manage</Button>
-                        <Button size="sm" variant="outline">
-                          View Details
-                        </Button>
-                        {club.role === "Member" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            Leave Club
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* Events Tab */}
@@ -536,87 +774,69 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                 <CardTitle>Your Upcoming Events</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {userClubs
-                    .filter((club) => club.nextEvent)
-                    .map((club) => (
+                {upcomingEvents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      No upcoming events from your clubs
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingEvents.map((event) => (
                       <div
-                        key={club.id}
+                        key={event.id}
                         className="flex items-center justify-between p-4 border rounded-lg"
                       >
                         <div className="flex items-center space-x-4">
                           <Calendar className="w-5 h-5 text-[#012169]" />
                           <div>
-                            <div className="font-medium">
-                              {club.nextEvent!.name}
-                            </div>
+                            <div className="font-medium">{event.name}</div>
                             <div className="text-sm text-gray-600">
-                              {club.name}
+                              {event.clubName}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {club.nextEvent!.date} at {club.nextEvent!.time}
+                              {event.date} at {event.time}
+                              {event.location && ` • ${event.location}`}
                             </div>
+                            {event.capacity && (
+                              <div className="text-xs text-gray-400">
+                                {event.registered}/{event.capacity} registered
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex space-x-2">
-                          <Button size="sm">View Details</Button>
-                          <Button size="sm" variant="outline">
-                            <Heart className="w-3 h-3 mr-1" />
-                            RSVP
+                          <Button
+                            size="sm"
+                            onClick={() => navigate(`/events/${event.id}`)}
+                          >
+                            View Details
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={event.isRsvped ? "default" : "outline"}
+                            onClick={() => handleRsvpToggle(event.id)}
+                            disabled={actionLoading === event.id}
+                          >
+                            {actionLoading === event.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Heart
+                                  className={`w-3 h-3 mr-1 ${
+                                    event.isRsvped ? "fill-current" : ""
+                                  }`}
+                                />
+                                {event.isRsvped ? "RSVPed" : "RSVP"}
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
                     ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 border rounded-lg ${
-                        notification.read
-                          ? "bg-gray-50"
-                          : "bg-blue-50 border-blue-200"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline">{notification.club}</Badge>
-                            <Badge className="text-xs">
-                              {notification.type}
-                            </Badge>
-                            {!notification.read && (
-                              <Badge className="bg-blue-600 text-xs">New</Badge>
-                            )}
-                          </div>
-                          <h4 className="font-medium">{notification.title}</h4>
-                          <p className="text-sm text-gray-600">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {notification.time}
-                          </p>
-                        </div>
-                        {!notification.read && (
-                          <Button size="sm" variant="ghost">
-                            Mark as Read
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -625,3 +845,4 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
     </div>
   );
 }
+  
