@@ -187,11 +187,6 @@ export function Events() {
         credentials: "include",
         body: JSON.stringify({ userId: user.id }),
       });
-
-      if (!res.ok) {
-        console.error(await res.text());
-        alert("RSVP failed on server (UI may be out of sync).");
-      }
     } catch (err) {
       console.error(err);
       alert("RSVP failed on server (UI may be out of sync).");
