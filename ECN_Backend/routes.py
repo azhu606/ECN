@@ -3,6 +3,7 @@ from services import list_clubs, create_club, list_events, create_event, search_
 import os
 from db_ops import get_session
 from models import Club, Event, OfficerRole, Student
+from sqlalchemy import func
 
 api_bp = Blueprint("api", __name__)
 
@@ -116,81 +117,74 @@ def get_club_members(club_id):
     - position: "president" | "officer" | "member"
     - joinDate: ISO string
     - eventsAttended: int
+
+    Uses both Club arrays AND OfficerRole for membership.
     """
     with get_session() as session:
         club = session.get(Club, club_id)
         if not club:
             return jsonify({"error": "Club not found"}), 404
 
-        # --- 1) Start from OfficerRole ---
-        rows = (
-            session.query(OfficerRole, Student)
-            .join(Student, OfficerRole.student_id == Student.id)
+        # base membership from arrays (if you ever use them)
+        member_ids = set(
+            (club.member_ids or [])
+            + (club.officers or [])
+            + (club.president_ids or [])
+        )
+
+        # add from OfficerRole (source of truth for officers/president)
+        role_rows = (
+            session.query(OfficerRole)
             .filter(OfficerRole.club_id == club_id)
             .all()
         )
 
-        def role_priority(role: str) -> int:
-            # lower = higher priority
-            mapping = {
-                "president": 0,
-                "managing_exec": 1,
-                "officer": 2,
-            }
-            return mapping.get(role, 3)
+        president_ids = set()
+        officer_ids = set()
 
-        members_by_id: dict = {}
+        for r in role_rows:
+            member_ids.add(r.student_id)
+            if r.role == "president":
+                president_ids.add(r.student_id)
+            elif r.role == "officer":
+                officer_ids.add(r.student_id)
 
-        for role_row, stu in rows:
-            sid = stu.id
-            new_role = role_row.role  # "president" | "officer" | "managing_exec"
+        if not member_ids:
+            return jsonify([])
 
-            existing = members_by_id.get(sid)
-            if existing is None or role_priority(new_role) < role_priority(existing["position"]):
-                members_by_id[sid] = {
-                    "id": str(stu.id),
-                    "name": stu.name,
-                    "email": stu.email,
-                    "position": new_role,  # we'll normalize below
-                    "joinDate": stu.created_at.isoformat() if stu.created_at else None,
-                    "eventsAttended": len(stu.attended_events or []),
+        students = (
+            session.query(Student)
+            .filter(Student.id.in_(member_ids))
+            .all()
+        )
+
+        results = []
+        for s in students:
+            if s.id in president_ids:
+                position = "president"
+            elif s.id in officer_ids or club.id in (s.officer_clubs or []):
+                position = "officer"
+            else:
+                position = "member"
+
+            results.append(
+                {
+                    "id": str(s.id),
+                    "name": s.name,
+                    "email": s.email,
+                    "position": position,
+                    "joinDate": s.created_at.isoformat(),
+                    "eventsAttended": len(s.attended_events or []),
                 }
-
-        # --- 2) Optional: extra non-officer members from club.member_ids ---
-        extra_member_ids = set(club.member_ids or []) - set(members_by_id.keys())
-
-        if extra_member_ids:
-            extra_students = (
-                session.query(Student)
-                .filter(Student.id.in_(extra_member_ids))
-                .all()
             )
-            for stu in extra_students:
-                members_by_id[stu.id] = {
-                    "id": str(stu.id),
-                    "name": stu.name,
-                    "email": stu.email,
-                    "position": "member",
-                    "joinDate": stu.created_at.isoformat() if stu.created_at else None,
-                    "eventsAttended": len(stu.attended_events or []),
-                }
 
-        # --- 3) Normalize positions + sort by hierarchy ---
-        results = list(members_by_id.values())
-
-        for m in results:
-            # collapse roles so the frontend only sees "president" | "officer" | "member"
-            if m["position"] not in ("president", "officer", "member"):
-                if m["position"] == "managing_exec":
-                    m["position"] = "officer"
-                else:
-                    m["position"] = "member"
-
+        # sort by hierarchy
         results.sort(
             key=lambda m: {"president": 0, "officer": 1, "member": 2}.get(m["position"], 3)
         )
 
         return jsonify(results)
+
 
 
 @api_bp.get("/clubs/<uuid:club_id>/events")
@@ -287,7 +281,50 @@ def auth_verify():
         return resp
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    
 
+
+@api_bp.post("/auth/login")
+def auth_login_route():
+    """
+    DEV/DEMO LOGIN:
+    - Looks up Student by email (case-insensitive)
+    - Compares password to password_hash *as plain text*
+    - Does NOT check is_verified
+    """
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "")
+    #print(password)
+
+    if not email or not password:
+        return jsonify({"error": "missing_credentials"}), 400
+
+    with get_session() as session:
+        student = (
+            session.query(Student)
+            .filter(func.lower(Student.email) == email)
+            .one_or_none()
+        )
+
+        if student is None:
+            # this is what currently maps to your "No account for this email" message
+            return jsonify({"error": "no account for email, please register"}), 404
+
+        # DEV: compare plain text password to password_hash column
+        if (student.password_hash or "") != password:
+            return jsonify({"error": "wrong password"}), 401
+
+        # success – return minimal user object
+        user_payload = {
+            "id": str(student.id),
+            "name": student.name,
+            "email": student.email,
+        }
+
+        return jsonify({"user": user_payload}), 200
+
+'''
 @api_bp.post("/auth/login")
 def auth_login_route():
     #Email + password login
@@ -320,7 +357,7 @@ def auth_me_route():
         return jsonify(result)
     except ValueError as e:
         return jsonify({"error": str(e)}), 401
-
+'''
 @api_bp.post("/auth/logout")
 def auth_logout_route():
     #Clears the cookie to log out
@@ -517,4 +554,72 @@ def update_club_profile(club_id):
             "updateRecencyBadge": club.update_recency_badge,
         }
         return jsonify(payload)
+
+
+
+@api_bp.get("/users/<uuid:user_id>/officer-clubs")
+def get_user_officer_clubs(user_id):
+    """
+    Returns all clubs where this user is president / managing_exec / officer.
+    Shape:
+    [
+      { "id": "...", "name": "...", "verified": true },
+      ...
+    ]
+    """
+    with get_session() as session:
+        # Join OfficerRole -> Club, distinct by club
+        rows = (
+            session.query(Club)
+            .join(OfficerRole, OfficerRole.club_id == Club.id)
+            .filter(OfficerRole.student_id == user_id)
+            .filter(OfficerRole.role.in_(["president", "managing_exec", "officer"]))
+            .distinct(Club.id)
+            .all()
+        )
+
+        payload = [
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "verified": c.verified,
+            }
+            for c in rows
+        ]
+        return jsonify(payload)
+
+
+from sqlalchemy import func  # if not already imported
+# ...
+
+@api_bp.get("/students/<uuid:student_id>/officer-clubs")
+def get_officer_clubs(student_id):
+    """
+    Return all clubs where this student has an officer role
+    (president or officer).
+    """
+    with get_session() as session:
+        rows = (
+            session.query(OfficerRole, Club)
+            .join(Club, OfficerRole.club_id == Club.id)
+            .filter(
+                OfficerRole.student_id == student_id,
+                OfficerRole.role.in_(["president", "officer"]),
+            )
+            .all()
+        )
+
+        # de-duplicate clubs in case the student has multiple roles
+        clubs_by_id = {}
+        for role, club in rows:
+            if club.id not in clubs_by_id:
+                clubs_by_id[club.id] = {
+                    "id": str(club.id),
+                    "name": club.name,
+                    "verified": bool(club.verified),
+                    "role": role.role,  # "president" or "officer"
+                }
+
+        return jsonify(list(clubs_by_id.values()))
+
 

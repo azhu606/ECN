@@ -17,7 +17,7 @@ import SignUp from "./pages/SignUp";
 import Verification from "./pages/Verification";
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // placeholder true, logging in is buggy
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // placeholder true, logging in is buggy
 
   return (
     <AuthProvider>

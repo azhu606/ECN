@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type React from "react";
 import { useNavigate } from "react-router-dom";
+import { getCurrentUserId } from "../authSession";
 
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -73,8 +74,9 @@ import {
   Building2,
 } from "lucide-react";
 
-const PLACEHOLDER_CLUB_ID = "58c2bbc8-9c6d-488c-ba15-dc682966c160"; // TODO: replace with real club UUID
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+const userId = getCurrentUserId();
 
 interface ClubMetrics {
   members: number;
@@ -131,174 +133,28 @@ interface Member {
   eventsAttended: number;
 }
 
-const clubMetricsFallback: ClubMetrics = {
-  members: 180,
-  memberGrowth: 12,
-  eventAttendance: 89,
-  attendanceRate: 76,
-  profileViews: 245,
-  profileGrowth: 8,
-  freshnessScore: 92,
-  engagementScore: 85,
+interface OfficerClub {
+  id: string;
+  name: string;
+  verified: boolean;
+  role: string; // "president" | "officer"
+}
+
+const emptyMetrics: ClubMetrics = {
+  members: 0,
+  memberGrowth: 0,
+  eventAttendance: 0,
+  attendanceRate: 0,
+  profileViews: 0,
+  profileGrowth: 0,
+  freshnessScore: 0,
+  engagementScore: 0,
 };
-
-const upcomingEventsFallback: UpcomingEvent[] = [
-  {
-    id: "1",
-    name: "Medical School Panel",
-    date: "2024-10-20",
-    time: "7:00 PM",
-    location: "Chemistry Building Room 240",
-    capacity: 100,
-    registered: 78,
-    status: "published",
-  },
-  {
-    id: "2",
-    name: "MCAT Study Group",
-    date: "2024-10-22",
-    time: "6:00 PM",
-    location: "Library Study Room 3A",
-    capacity: 20,
-    registered: 15,
-    status: "published",
-  },
-  {
-    id: "3",
-    name: "Research Symposium",
-    date: "2024-10-28",
-    time: "2:00 PM",
-    location: "Rollins School Auditorium",
-    capacity: 200,
-    registered: 45,
-    status: "draft",
-  },
-];
-
-const recentActivityFallback: RecentActivity[] = [
-  {
-    id: "1",
-    type: "join",
-    user: "Sarah Chen",
-    action: "joined the club",
-    time: "2 hours ago",
-  },
-  {
-    id: "2",
-    type: "rsvp",
-    user: "Michael Rodriguez",
-    action: "RSVP'd to Medical School Panel",
-    time: "4 hours ago",
-  },
-  {
-    id: "3",
-    type: "inquiry",
-    user: "Emily Johnson",
-    action: "sent an info request",
-    time: "6 hours ago",
-  },
-  {
-    id: "4",
-    type: "review",
-    user: "David Park",
-    action: "left a 5-star review",
-    time: "1 day ago",
-  },
-];
-
-const initialMembers: Member[] = [
-  {
-    id: "1",
-    name: "John Williams",
-    email: "john.williams@emory.edu",
-    position: "president",
-    joinDate: "2023-08-15",
-    eventsAttended: 24,
-  },
-  {
-    id: "2",
-    name: "Sarah Chen",
-    email: "sarah.chen@emory.edu",
-    position: "officer",
-    joinDate: "2023-09-01",
-    eventsAttended: 22,
-  },
-  {
-    id: "3",
-    name: "Michael Rodriguez",
-    email: "michael.rodriguez@emory.edu",
-    position: "officer",
-    joinDate: "2023-09-01",
-    eventsAttended: 20,
-  },
-  {
-    id: "4",
-    name: "Emily Johnson",
-    email: "emily.johnson@emory.edu",
-    position: "officer",
-    joinDate: "2023-09-15",
-    eventsAttended: 18,
-  },
-  {
-    id: "5",
-    name: "David Park",
-    email: "david.park@emory.edu",
-    position: "member",
-    joinDate: "2024-01-20",
-    eventsAttended: 15,
-  },
-  {
-    id: "6",
-    name: "Amanda Thompson",
-    email: "amanda.thompson@emory.edu",
-    position: "member",
-    joinDate: "2024-02-10",
-    eventsAttended: 12,
-  },
-  {
-    id: "7",
-    name: "James Lee",
-    email: "james.lee@emory.edu",
-    position: "member",
-    joinDate: "2024-03-05",
-    eventsAttended: 10,
-  },
-  {
-    id: "8",
-    name: "Maria Garcia",
-    email: "maria.garcia@emory.edu",
-    position: "member",
-    joinDate: "2024-04-12",
-    eventsAttended: 8,
-  },
-  {
-    id: "9",
-    name: "Kevin Patel",
-    email: "kevin.patel@emory.edu",
-    position: "member",
-    joinDate: "2024-05-18",
-    eventsAttended: 6,
-  },
-  {
-    id: "10",
-    name: "Lisa Wong",
-    email: "lisa.wong@emory.edu",
-    position: "member",
-    joinDate: "2024-06-22",
-    eventsAttended: 4,
-  },
-];
-
-const availableClubs = [
-  { id: "1", name: "Pre-Medical Society", verified: true },
-  { id: "2", name: "Computer Science Society", verified: true },
-  { id: "3", name: "Debate Society", verified: false },
-];
 
 interface ForOfficersProps {
   isLoggedIn: boolean;
-  clubId: string;
-  apiBaseUrl?: string; // e.g. "/api"
+  clubId: string; // kept for compatibility; we ignore it if we have a currentClubId
+  apiBaseUrl?: string;
 }
 
 export function ForOfficers({
@@ -308,22 +164,52 @@ export function ForOfficers({
 }: ForOfficersProps) {
   const navigate = useNavigate();
 
+  const effectiveBase = apiBaseUrl ?? API_BASE;
+
   const [selectedTab, setSelectedTab] = useState("dashboard");
-  const [newEventTitle, setNewEventTitle] = useState("");
-  const [newEventDescription, setNewEventDescription] = useState("");
+
+  // Which club(s) this user can manage
+  const [officerClubs, setOfficerClubs] = useState<OfficerClub[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState<boolean>(true);
+  const [clubsError, setClubsError] = useState<string | null>(null);
+
+  const [currentClubId, setCurrentClubId] = useState<string | null>(null);
+  const [currentClubName, setCurrentClubName] = useState<string>("");
+
+  const [showRegisterClubDialog, setShowRegisterClubDialog] = useState(false);
+
+  // Other UI state
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
 
-  // Members / club switching / registration / invite state (placeholders)
-  const [members, setMembers] = useState<Member[]>(initialMembers);
+  // Members / invite / kick
+  const [members, setMembers] = useState<Member[]>([]);
   const [memberToKick, setMemberToKick] = useState<Member | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
-  const [showSwitchClubDialog, setShowSwitchClubDialog] = useState(false);
-  const [showRegisterClubDialog, setShowRegisterClubDialog] = useState(false);
   const [showInviteMemberDialog, setShowInviteMemberDialog] = useState(false);
-  const [currentClub, setCurrentClub] = useState("Pre-Medical Society");
-  const [selectedClubToSwitch, setSelectedClubToSwitch] = useState("");
 
+  const [inviteForm, setInviteForm] = useState({
+    memberName: "",
+    memberEmail: "",
+    message: "",
+  });
+
+  // Metrics
+  const [clubMetrics, setClubMetrics] = useState<ClubMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState<boolean>(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  // Profile
+  const [clubProfile, setClubProfile] = useState<ClubProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState<boolean>(false);
+
+  // Events & activity
+  const [events, setEvents] = useState<UpcomingEvent[]>([]);
+  const [activity, setActivity] = useState<RecentActivity[]>([]); // you can wire this later
+
+  // Registration form (for "Register Club" dialog)
   const [registrationForm, setRegistrationForm] = useState({
     clubName: "",
     category: "Academic",
@@ -337,33 +223,12 @@ export function ForOfficers({
     charterFile: null as File | null,
   });
 
-  const [inviteForm, setInviteForm] = useState({
-    memberName: "",
-    memberEmail: "",
-    message: "",
-  });
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventDescription, setNewEventDescription] = useState("");
 
-  // Metrics state (backed by backend but with fallback placeholder)
-  const [clubMetrics, setClubMetrics] = useState<ClubMetrics | null>(null);
-  const [metricsLoading, setMetricsLoading] = useState<boolean>(true);
-  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const effectiveClubId = currentClubId || clubId || "";
 
-  // Profile state (backend)
-  const [clubProfile, setClubProfile] = useState<ClubProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState<boolean>(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSaving, setProfileSaving] = useState<boolean>(false);
-
-  // Events & activity (placeholder + optional backend)
-  const [events, setEvents] = useState<UpcomingEvent[]>(upcomingEventsFallback);
-  const [activity, setActivity] = useState<RecentActivity[]>(
-    recentActivityFallback
-  );
-
-  const effectiveBase = apiBaseUrl ?? API_BASE;
-  const effectiveClubId = clubId || PLACEHOLDER_CLUB_ID;
-
-  const metrics: ClubMetrics = clubMetrics ?? clubMetricsFallback;
+  const metrics: ClubMetrics = clubMetrics ?? emptyMetrics;
 
   const lastUpdatedLabel = (() => {
     if (!clubProfile?.lastUpdatedAt) return "Last updated —";
@@ -377,9 +242,57 @@ export function ForOfficers({
     return `Last updated ${diffDays} days ago`;
   })();
 
-  // Fetch metrics + profile from backend
+  // --------------------------------------------------
+  // 1) Fetch officer clubs for this user
+  // --------------------------------------------------
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !userId) return;
+
+    const fetchOfficerClubs = async () => {
+      try {
+        setLoadingClubs(true);
+        setClubsError(null);
+
+        const url = `${effectiveBase}/students/${userId}/officer-clubs`;
+        console.log("Fetching officer clubs from:", url);
+
+        const res = await fetch(url, { credentials: "include" });
+        console.log("officer-clubs status:", res.status);
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.error("officer-clubs error body:", body);
+          throw new Error(body.error || `Failed to load clubs (${res.status})`);
+        }
+
+        const data: OfficerClub[] = await res.json();
+        console.log("officerClubs from API:", data);
+
+        setOfficerClubs(data);
+
+        if (data.length > 0) {
+          setCurrentClubId(data[0].id);
+          setCurrentClubName(data[0].name);
+        } else {
+          setCurrentClubId(null);
+          setCurrentClubName("");
+        }
+      } catch (err: any) {
+        console.error("Error loading officer clubs", err);
+        setClubsError(err.message || "Unable to load your clubs.");
+      } finally {
+        setLoadingClubs(false);
+      }
+    };
+
+    fetchOfficerClubs();
+  }, [isLoggedIn, effectiveBase]);
+
+  // --------------------------------------------------
+  // 2) Fetch metrics + profile when club changes
+  // --------------------------------------------------
+  useEffect(() => {
+    if (!isLoggedIn || !effectiveClubId) return;
 
     const fetchMetrics = async () => {
       try {
@@ -390,13 +303,18 @@ export function ForOfficers({
           { credentials: "include" }
         );
         if (!res.ok) {
-          throw new Error(`Failed to load metrics (${res.status})`);
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            body.error || `Failed to load metrics (${res.status})`
+          );
         }
         const data: ClubMetrics = await res.json();
         setClubMetrics(data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error loading club metrics", err);
-        setMetricsError("Unable to load club analytics right now.");
+        setMetricsError(
+          err.message || "Unable to load club analytics right now."
+        );
       } finally {
         setMetricsLoading(false);
       }
@@ -411,13 +329,18 @@ export function ForOfficers({
           { credentials: "include" }
         );
         if (!res.ok) {
-          throw new Error(`Failed to load profile (${res.status})`);
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            body.error || `Failed to load profile (${res.status})`
+          );
         }
         const data: ClubProfile = await res.json();
         setClubProfile(data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error loading club profile", err);
-        setProfileError("Unable to load club profile right now.");
+        setProfileError(
+          err.message || "Unable to load club profile right now."
+        );
       } finally {
         setProfileLoading(false);
       }
@@ -427,9 +350,11 @@ export function ForOfficers({
     fetchProfile();
   }, [isLoggedIn, effectiveBase, effectiveClubId]);
 
-  // Fetch events + members (optional backend; keeps placeholder if it fails)
+  // --------------------------------------------------
+  // 3) Fetch events + members when club changes
+  // --------------------------------------------------
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !effectiveClubId) return;
 
     const fetchEvents = async () => {
       try {
@@ -460,13 +385,15 @@ export function ForOfficers({
       }
     };
 
-    // Optional future: fetch activity from backend and call setActivity
     fetchEvents();
     fetchMembers();
   }, [isLoggedIn, effectiveBase, effectiveClubId]);
 
+  // --------------------------------------------------
+  // Save profile
+  // --------------------------------------------------
   const handleSaveProfile = async () => {
-    if (!clubProfile) return;
+    if (!clubProfile || !effectiveClubId) return;
     try {
       setProfileSaving(true);
       setProfileError(null);
@@ -508,73 +435,9 @@ export function ForOfficers({
     }
   };
 
-  // If not logged in, show authentication prompt
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
-        <Card className="max-w-md w-full shadow-2xl">
-          <CardContent className="p-8 text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 bg-[#012169] rounded-full flex items-center justify-center">
-                <Lock className="w-8 h-8 text-white" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Officer Access Required
-              </h2>
-              <p className="text-gray-600">
-                This page is exclusively for club officers. Please sign in with
-                your NetID to access the officer dashboard.
-              </p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-              <div className="flex items-start space-x-2">
-                <ShieldAlert className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-left text-blue-900">
-                  <p className="font-semibold">Officer Dashboard Features:</p>
-                  <ul className="mt-2 space-y-1 text-blue-700">
-                    <li>• Manage club events and announcements</li>
-                    <li>• Track member engagement & analytics</li>
-                    <li>• Update club profile information</li>
-                    <li>• View and respond to member inquiries</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <Button
-                onClick={() => navigate("/signin")}
-                className="w-full bg-[#012169] hover:bg-[#0a2e6e] text-white h-11 text-base font-semibold"
-              >
-                Sign In with NetID
-              </Button>
-
-              <Button
-                onClick={() => navigate("/")}
-                variant="outline"
-                className="w-full h-11 text-base"
-              >
-                Back to Homepage
-              </Button>
-            </div>
-
-            <p className="text-xs text-gray-500">
-              Don't have officer access? Contact your club president or visit
-              the main site to join clubs.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // --------------------
+  // --------------------------------------------------
   // Helpers
-  // --------------------
+  // --------------------------------------------------
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "join":
@@ -629,14 +492,6 @@ export function ForOfficers({
     }
   };
 
-  const handleSwitchClub = () => {
-    if (selectedClubToSwitch) {
-      setCurrentClub(selectedClubToSwitch);
-      setShowSwitchClubDialog(false);
-      setSelectedClubToSwitch("");
-    }
-  };
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setRegistrationForm({
@@ -647,7 +502,7 @@ export function ForOfficers({
   };
 
   const handleRegisterClub = () => {
-    // placeholder, backend integration handled elsewhere
+    // hook this up to backend later
     console.log("Registering club:", registrationForm);
     setRegistrationForm({
       clubName: "",
@@ -674,9 +529,113 @@ export function ForOfficers({
     setShowInviteMemberDialog(false);
   };
 
-  // --------------------
-  // Main logged-in UI
-  // --------------------
+  // --------------------------------------------------
+  // Auth gate
+  // --------------------------------------------------
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+        <Card className="max-w-md w-full shadow-2xl">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 bg-[#012169] rounded-full flex items-center justify-center">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Officer Access Required
+              </h2>
+              <p className="text-gray-600">
+                This page is exclusively for club officers. Please sign in with
+                your Emory email to access the officer dashboard.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-start space-x-2">
+                <ShieldAlert className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-left text-blue-900">
+                  <p className="font-semibold">Officer Dashboard Features:</p>
+                  <ul className="mt-2 space-y-1 text-blue-700">
+                    <li>• Manage club events and announcements</li>
+                    <li>• Track member engagement & analytics</li>
+                    <li>• Update club profile information</li>
+                    <li>• View and respond to member inquiries</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <Button
+                onClick={() => navigate("/signin")}
+                className="w-full bg-[#012169] hover:bg-[#0a2e6e] text-white h-11 text-base font-semibold"
+              >
+                Sign In
+              </Button>
+
+              <Button
+                onClick={() => navigate("/")}
+                variant="outline"
+                className="w-full h-11 text-base"
+              >
+                Back to Homepage
+              </Button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Don't have officer access? Contact your club president or visit
+              the main site to join clubs.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // No officer clubs: show simple "Register club" CTA
+  // --------------------------------------------------
+  if (!loadingClubs && officerClubs.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <Card className="max-w-lg w-full text-center py-10 px-6">
+          <CardHeader>
+            <CardTitle className="text-2xl">
+              You’re not an officer of any club yet
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {clubsError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{clubsError}</AlertDescription>
+              </Alert>
+            )}
+            <p className="text-gray-600">
+              Once you're listed as a president or officer for a club, it will
+              appear here automatically.
+            </p>
+            <Button
+              className="mt-2 bg-[#012169] hover:bg-[#001a5c]"
+              onClick={() => setShowRegisterClubDialog(true)}
+            >
+              <Building2 className="w-4 h-4 mr-2" />
+              Register a Club
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Register Club dialog is still rendered below in the main component */}
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // Main Officer Dashboard (requires currentClubId)
+  // --------------------------------------------------
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -692,7 +651,7 @@ export function ForOfficers({
               </p>
               <div className="flex items-center space-x-4 mt-3">
                 <Badge className="bg-[#012169]">
-                  {clubProfile?.name || currentClub}
+                  {clubProfile?.name || currentClubName || "Loading club…"}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -725,13 +684,35 @@ export function ForOfficers({
                 </div>
                 <div className="text-sm text-gray-500">Freshness Score</div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => setShowSwitchClubDialog(true)}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Switch Clubs
-              </Button>
+
+              {/* Inline club switcher – calls backend data already in officerClubs */}
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-gray-500 mb-1">
+                  Managing club
+                </span>
+                <Select
+                  value={currentClubId ?? ""}
+                  onValueChange={(clubId) => {
+                    const club = officerClubs.find((c) => c.id === clubId);
+                    if (!club) return;
+                    setCurrentClubId(club.id);
+                    setCurrentClubName(club.name);
+                    // selectedTab stays the same; effects below will refetch with new clubId
+                  }}
+                >
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select a club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {officerClubs.map((club) => (
+                      <SelectItem key={club.id} value={club.id}>
+                        {club.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button
                 variant="outline"
                 onClick={() => setShowRegisterClubDialog(true)}
@@ -769,8 +750,7 @@ export function ForOfficers({
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                Your club profile was recently updated. Keep your information
-                fresh with regular updates to maintain high discoverability.
+                Keep your club profile updated to maintain high discoverability.
                 <Button variant="link" className="p-0 ml-2 h-auto">
                   Update now →
                 </Button>
@@ -847,13 +827,18 @@ export function ForOfficers({
               </Card>
             </div>
 
-            {/* Recent Activity & Quick Actions */}
+            {/* Recent Activity placeholder list (empty is fine until wired) */}
             <div className="grid lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {activity.length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      No recent activity yet.
+                    </p>
+                  )}
                   {activity.map((activityItem) => (
                     <div
                       key={activityItem.id}
@@ -970,6 +955,11 @@ export function ForOfficers({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {events.length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      No upcoming events yet.
+                    </p>
+                  )}
                   {events.map((event) => (
                     <div
                       key={event.id}
@@ -1044,7 +1034,6 @@ export function ForOfficers({
                 </CardContent>
               </Card>
 
-              {/* Growth card */}
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center space-y-2">
@@ -1100,6 +1089,16 @@ export function ForOfficers({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {members.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="text-sm text-gray-500"
+                        >
+                          No members yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {members.map((member) => (
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">
@@ -1146,30 +1145,6 @@ export function ForOfficers({
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Member Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="grid md:grid-cols-2 gap-4">
-                <Button variant="outline" className="justify-start">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Send Mass Email
-                </Button>
-                <Button variant="outline" className="justify-start">
-                  <Users className="w-4 h-4 mr-2" />
-                  Export Member List
-                </Button>
-                <Button variant="outline" className="justify-start">
-                  <Award className="w-4 h-4 mr-2" />
-                  Manage Roles
-                </Button>
-                <Button variant="outline" className="justify-start">
-                  <Bell className="w-4 h-4 mr-2" />
-                  Set Notifications
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1456,7 +1431,6 @@ export function ForOfficers({
             )}
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Engagement Score from backend */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1473,7 +1447,6 @@ export function ForOfficers({
                 </CardContent>
               </Card>
 
-              {/* Profile Views */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1491,7 +1464,6 @@ export function ForOfficers({
                 </CardContent>
               </Card>
 
-              {/* Attendance */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1511,7 +1483,6 @@ export function ForOfficers({
                 </CardContent>
               </Card>
 
-              {/* Member count */}
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1529,22 +1500,6 @@ export function ForOfficers({
                 </CardContent>
               </Card>
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Engagement Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-500">
-                  <BarChart3 className="w-12 h-12 mx-auto mb-4" />
-                  <p>Detailed analytics charts would be displayed here</p>
-                  <p className="text-sm">
-                    Track member growth, event attendance, and engagement over
-                    time
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -1575,71 +1530,6 @@ export function ForOfficers({
       </AlertDialog>
 
       {/* Switch Clubs Dialog */}
-      <Dialog
-        open={showSwitchClubDialog}
-        onOpenChange={setShowSwitchClubDialog}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Switch Clubs</DialogTitle>
-            <DialogDescription>
-              Select a club to manage from your registered organizations
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="club-select">Select Club</Label>
-              <Select
-                value={selectedClubToSwitch}
-                onValueChange={setSelectedClubToSwitch}
-              >
-                <SelectTrigger id="club-select">
-                  <SelectValue placeholder="Choose a club" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableClubs.map((club) => (
-                    <SelectItem key={club.id} value={club.name}>
-                      <div className="flex items-center space-x-2">
-                        <span>{club.name}</span>
-                        {club.verified && (
-                          <CheckCircle className="w-3 h-3 text-green-500" />
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-2">
-                <Bell className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-900">Current Club</p>
-                  <p className="text-blue-700 mt-1">{currentClub}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowSwitchClubDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSwitchClub}
-              disabled={!selectedClubToSwitch}
-              className="bg-[#012169] hover:bg-[#001a5c]"
-            >
-              Switch Club
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Register Club Dialog */}
       <Dialog
@@ -1650,8 +1540,8 @@ export function ForOfficers({
           <DialogHeader>
             <DialogTitle>Register New Club</DialogTitle>
             <DialogDescription>
-              Submit your club registration application. All fields are required
-              for verification.
+              Submit your club registration application. (Backend wiring
+              pending.)
             </DialogDescription>
           </DialogHeader>
 
@@ -1884,9 +1774,8 @@ export function ForOfficers({
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                Your club registration will be reviewed by Student Affairs
-                within 3-5 business days. You'll receive an email confirmation
-                once approved.
+                Your club registration will be reviewed by Student Affairs once
+                this feature is fully wired up.
               </AlertDescription>
             </Alert>
           </div>
@@ -2000,6 +1889,7 @@ export function ForOfficers({
               disabled={!inviteForm.memberName || !inviteForm.memberEmail}
               className="bg-[#012169] hover:bg-[#001a5c]"
             >
+              <Mail className="w-4 h-4 mr-2" />
               Send Invitation
             </Button>
           </DialogFooter>
@@ -2016,8 +1906,7 @@ export function ForOfficers({
             <DialogTitle>Send Announcement to Members</DialogTitle>
             <DialogDescription>
               This announcement will be sent to all {metrics.members} members of{" "}
-              {clubProfile?.name || currentClub || "your club"} via email and
-              in-app notification.
+              {clubProfile?.name || currentClubName || "your club"}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -2039,12 +1928,6 @@ export function ForOfficers({
                 rows={6}
               />
             </div>
-            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-              <Bell className="w-4 h-4 text-blue-600" />
-              <span className="text-sm text-blue-900">
-                Members will receive both email and push notifications
-              </span>
-            </div>
           </div>
           <DialogFooter>
             <Button
@@ -2055,7 +1938,6 @@ export function ForOfficers({
             </Button>
             <Button
               onClick={() => {
-                // Hook this up to backend announcement endpoint later
                 alert(`Announcement sent to ${metrics.members} members!`);
                 setAnnouncementText("");
                 setShowAnnouncementModal(false);
