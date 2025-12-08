@@ -108,8 +108,10 @@ interface ClubProfile {
 interface UpcomingEvent {
   id: string;
   name: string;
+  description: string | null;
   date: string | null;
   time: string | null;
+  startTime: string | null; // NEW
   location: string | null;
   capacity: number | null;
   registered: number;
@@ -209,6 +211,108 @@ export function ForOfficers({
   const [events, setEvents] = useState<UpcomingEvent[]>([]);
   const [activity, setActivity] = useState<RecentActivity[]>([]); // you can wire this later
 
+  const [editingEvent, setEditingEvent] = useState<UpcomingEvent | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDateTime, setEditDateTime] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editCapacity, setEditCapacity] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const toLocalInputValue = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate()
+    )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const openEditEvent = (event: UpcomingEvent) => {
+    setEditingEvent(event);
+    setEditTitle(event.name);
+    setEditDescription(event.description ?? "");
+    setEditLocation(event.location ?? "");
+    setEditCapacity(
+      event.capacity !== null && event.capacity !== undefined
+        ? String(event.capacity)
+        : ""
+    );
+    setEditDateTime(toLocalInputValue(event.startTime));
+  };
+  const handleSaveEditedEvent = async () => {
+    if (!editingEvent) return;
+
+    try {
+      setEditSaving(true);
+      setEventError(null);
+
+      const start = editDateTime ? new Date(editDateTime) : null;
+      const body: any = {
+        title: editTitle,
+        description: editDescription || null,
+        location: editLocation || null,
+        capacity: editCapacity ? Number(editCapacity) : null,
+      };
+
+      if (start) {
+        const end = new Date(start.getTime() + 60 * 60 * 1000); // 1-hour default
+        body.startTime = start.toISOString();
+        body.endTime = end.toISOString();
+      }
+
+      const res = await fetch(`${effectiveBase}/events/${editingEvent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to update event (${res.status})`);
+      }
+
+      if (effectiveClubId) {
+        await loadEventsForClub(effectiveClubId);
+      }
+      setEditingEvent(null);
+    } catch (err: any) {
+      console.error("Failed to update event", err);
+      setEventError(err.message || "Failed to update event.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!editingEvent) return;
+
+    try {
+      setDeleteLoading(true);
+      setEventError(null);
+
+      const res = await fetch(`${effectiveBase}/events/${editingEvent.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to delete event (${res.status})`);
+      }
+
+      if (effectiveClubId) {
+        await loadEventsForClub(effectiveClubId);
+      }
+      setEditingEvent(null);
+    } catch (err: any) {
+      console.error("Failed to delete event", err);
+      setEventError(err.message || "Failed to delete event.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   // Registration form (for "Register Club" dialog)
   const [registrationForm, setRegistrationForm] = useState({
     clubName: "",
@@ -223,8 +327,77 @@ export function ForOfficers({
     charterFile: null as File | null,
   });
 
+  // Events & activity
+  const loadEventsForClub = async (clubId: string) => {
+    try {
+      const res = await fetch(
+        `${effectiveBase}/clubs/${clubId}/events?upcoming=true`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return;
+      const data: UpcomingEvent[] = await res.json();
+      setEvents(data);
+    } catch (err) {
+      console.error("Failed to load club events", err);
+    }
+  };
+  const handleCreateEvent = async () => {
+    if (!effectiveClubId) return;
+
+    if (!newEventTitle || !newEventDateTime) {
+      // minimal guard so we don't send totally empty stuff
+      alert("Please enter a title and date/time");
+      return;
+    }
+
+    try {
+      setCreatingEvent(true);
+      setEventError(null);
+
+      const start = new Date(newEventDateTime);
+      // simple 1-hour default end time
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+      const res = await fetch(`${effectiveBase}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          // adjust keys if your create_event() expects slightly different names
+          clubId: effectiveClubId,
+          title: newEventTitle,
+          description: newEventDescription || null,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to create event (${res.status})`);
+      }
+
+      // event created – now refresh the upcoming list for this club
+      await loadEventsForClub(effectiveClubId);
+
+      // clear form
+      setNewEventTitle("");
+      setNewEventDescription("");
+      setNewEventDateTime("");
+    } catch (err: any) {
+      console.error("Error creating event", err);
+      setEventError(err.message || "Failed to create event.");
+    } finally {
+      setCreatingEvent(false);
+    }
+  };
+
+  // NEW: quick-create event state + error
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventDateTime, setNewEventDateTime] = useState("");
+  const [creatingEvent, setCreatingEvent] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
 
   const effectiveClubId = currentClubId || clubId || "";
 
@@ -356,19 +529,7 @@ export function ForOfficers({
   useEffect(() => {
     if (!isLoggedIn || !effectiveClubId) return;
 
-    const fetchEvents = async () => {
-      try {
-        const res = await fetch(
-          `${effectiveBase}/clubs/${effectiveClubId}/events?upcoming=true`,
-          { credentials: "include" }
-        );
-        if (!res.ok) return;
-        const data: UpcomingEvent[] = await res.json();
-        setEvents(data);
-      } catch (err) {
-        console.error("Failed to load club events", err);
-      }
-    };
+    loadEventsForClub(effectiveClubId);
 
     const fetchMembers = async () => {
       try {
@@ -385,7 +546,6 @@ export function ForOfficers({
       }
     };
 
-    fetchEvents();
     fetchMembers();
   }, [isLoggedIn, effectiveBase, effectiveClubId]);
 
@@ -715,11 +875,19 @@ export function ForOfficers({
 
               <Button
                 variant="outline"
-                onClick={() => setShowRegisterClubDialog(true)}
+                onClick={() => {
+                  console.log("open register dialog");
+                  setShowRegisterClubDialog(true);
+                }}
               >
                 <Building2 className="w-4 h-4 mr-2" />
                 Register Club
               </Button>
+              {showRegisterClubDialog && (
+                <div className="fixed bottom-4 right-4 bg-red-500 text-white px-3 py-2 z-[9999]">
+                  DIALOG STATE = TRUE
+                </div>
+              )}
               <Button>
                 <Settings className="w-4 h-4 mr-2" />
                 Club Settings
@@ -916,6 +1084,12 @@ export function ForOfficers({
 
           {/* Events Tab */}
           <TabsContent value="events" className="space-y-6">
+            {eventError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>{eventError}</AlertDescription>
+              </Alert>
+            )}
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Manage Events</h2>
               <Button>
@@ -923,7 +1097,6 @@ export function ForOfficers({
                 Create Event
               </Button>
             </div>
-
             <Card>
               <CardHeader>
                 <CardTitle>Quick Create Event</CardTitle>
@@ -935,7 +1108,11 @@ export function ForOfficers({
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}
                   />
-                  <Input type="datetime-local" />
+                  <Input
+                    type="datetime-local"
+                    value={newEventDateTime}
+                    onChange={(e) => setNewEventDateTime(e.target.value)}
+                  />
                 </div>
                 <Textarea
                   placeholder="Event description"
@@ -943,8 +1120,16 @@ export function ForOfficers({
                   onChange={(e) => setNewEventDescription(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <Button>Create & Publish</Button>
-                  <Button variant="outline">Save as Draft</Button>
+                  <Button onClick={handleCreateEvent} disabled={creatingEvent}>
+                    {creatingEvent ? "Creating..." : "Create & Publish"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCreateEvent}
+                    disabled={creatingEvent}
+                  >
+                    Save as Draft
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -997,7 +1182,11 @@ export function ForOfficers({
                           <Eye className="w-3 h-3 mr-1" />
                           View
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditEvent(event)}
+                        >
                           <Edit className="w-3 h-3 mr-1" />
                           Edit
                         </Button>
@@ -1892,6 +2081,101 @@ export function ForOfficers({
               <Mail className="w-4 h-4 mr-2" />
               Send Invitation
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Event Dialog */}
+      <Dialog
+        open={!!editingEvent}
+        onOpenChange={(open) => {
+          if (!open) setEditingEvent(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Event</DialogTitle>
+            <DialogDescription>
+              Update details for{" "}
+              <span className="font-semibold">
+                {editingEvent?.name || "this event"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-datetime">Date &amp; time</Label>
+              <Input
+                id="edit-datetime"
+                type="datetime-local"
+                value={editDateTime}
+                onChange={(e) => setEditDateTime(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-location">Location</Label>
+              <Input
+                id="edit-location"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-capacity">Capacity</Label>
+              <Input
+                id="edit-capacity"
+                type="number"
+                min={0}
+                value={editCapacity}
+                onChange={(e) => setEditCapacity(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                rows={4}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={handleDeleteEvent}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete Event"}
+            </Button>
+            <div className="space-x-2">
+              <Button variant="outline" onClick={() => setEditingEvent(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEditedEvent}
+                disabled={editSaving}
+                className="bg-[#012169] hover:bg-[#001a5c]"
+              >
+                {editSaving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -4,6 +4,15 @@ import os
 from db_ops import get_session
 from models import Club, Event, OfficerRole, Student
 from sqlalchemy import func
+from datetime import datetime
+
+def _parse_iso_dt(value: str | None):
+    if not value:
+        return None
+    v = value
+    if v.endswith("Z"):
+        v = v[:-1] + "+00:00"
+    return datetime.fromisoformat(v)
 
 api_bp = Blueprint("api", __name__)
 
@@ -189,6 +198,45 @@ def get_club_members(club_id):
 
 @api_bp.get("/clubs/<uuid:club_id>/events")
 def get_club_events(club_id):
+    """
+    Returns events for a given club, shaped for the ForOfficers UI.
+    """
+    upcoming = request.args.get("upcoming", "true").lower() != "false"
+
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        q = session.query(Event).filter(Event.club_id == club_id)
+
+        if upcoming:
+            q = q.filter(Event.start_time >= datetime.utcnow())
+
+        events = q.order_by(Event.start_time.asc()).all()
+
+        def fmt_time(dt):
+            # "7:00 PM" style
+            return dt.strftime("%-I:%M %p") if dt else None
+
+        payload = [
+            {
+                "id": str(e.id),
+                "name": e.title,
+                "description": e.description,
+                "date": e.start_time.date().isoformat() if e.start_time else None,
+                "time": fmt_time(e.start_time),
+                "startTime": e.start_time.isoformat() if e.start_time else None,
+                "location": e.location,
+                "capacity": e.rsvp_limit,
+                "registered": len(e.rsvp_ids or []),
+                "status": e.status,  # "draft" | "published" | "live"
+            }
+            for e in events
+        ]
+
+        return jsonify(payload)
+
     """
     Returns events for a given club, shaped for the ForOfficers UI.
     """
@@ -623,3 +671,51 @@ def get_officer_clubs(student_id):
         return jsonify(list(clubs_by_id.values()))
 
 
+@api_bp.put("/events/<uuid:event_id>")
+def update_event(event_id):
+    """
+    Update basic fields of an event.
+    Expects JSON body with optional:
+      - title
+      - description
+      - location
+      - capacity
+      - startTime (ISO)
+      - endTime (ISO)
+    """
+    body = request.get_json(force=True) or {}
+
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        if "title" in body:
+            event.title = body["title"]
+        if "description" in body:
+            event.description = body["description"]
+        if "location" in body:
+            event.location = body["location"]
+        if "capacity" in body:
+            event.rsvp_limit = body["capacity"]
+
+        if "startTime" in body:
+            event.start_time = _parse_iso_dt(body["startTime"])
+        if "endTime" in body:
+            event.end_time = _parse_iso_dt(body["endTime"])
+
+        session.add(event)
+        session.commit()
+
+        return jsonify({"ok": True})
+
+@api_bp.delete("/events/<uuid:event_id>")
+def delete_event(event_id):
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        session.delete(event)
+        session.commit()
+        return jsonify({"ok": True})
