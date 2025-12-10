@@ -83,7 +83,16 @@ def get_club_metrics(club_id):
         if not club:
             return jsonify({"error": "Club not found"}), 404
 
-        members = len(club.member_ids or [])
+        # Count all unique members from member_ids, officers, and OfficerRole table
+        member_set = set(club.member_ids or [])
+        member_set.update(club.officers or [])
+        
+        # Add members from OfficerRole table
+        officer_role_rows = session.query(OfficerRole).filter(OfficerRole.club_id == club_id).all()
+        for role in officer_role_rows:
+            member_set.add(role.student_id)
+        
+        members = len(member_set)
 
         events = session.query(Event).filter(Event.club_id == club_id).all()
         total_registered = sum(len(e.rsvp_ids or []) for e in events)
@@ -103,11 +112,27 @@ def get_club_metrics(club_id):
         #Simple placeholders—replace with real analytics later
         """
 
-        member_growth = 12
-        profile_views = 245
-        profile_growth = 8
-        freshness_score = 92
-        engagement_score = min(100, int(0.6 * attendance_rate + 0.4 * 85))
+        # Calculate member growth (placeholder - would need historical data)
+        # For now, estimate based on recent activity
+        member_growth = 0  # Set to 0 since we don't have historical data
+        
+        # Profile views - placeholder (would need analytics tracking)
+        profile_views = members * 5  # Rough estimate: 5 views per member
+        
+        # Profile growth (placeholder - would need historical view data)
+        profile_growth = 0  # Set to 0 since we don't have historical data
+        
+        # Freshness score - based on last updated date
+        from datetime import datetime, timezone
+        if club.last_updated_at:
+            days_since_update = (datetime.now(timezone.utc) - club.last_updated_at).days
+            freshness_score = max(0, min(100, 100 - (days_since_update * 2)))
+        else:
+            freshness_score = 50  # Neutral score if never updated
+        
+        # Engagement score - combine attendance rate and event count
+        event_factor = min(100, len(events) * 10)  # More events = higher engagement
+        engagement_score = min(100, int(0.5 * attendance_rate + 0.3 * event_factor + 0.2 * freshness_score))
 
         event_attendance = int(round(total_attended / len(events))) if events else 0
 
