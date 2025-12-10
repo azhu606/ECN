@@ -631,9 +631,46 @@ export function ForOfficers({
     setShowKickDialog(true);
   };
 
-  const confirmKickMember = () => {
-    if (memberToKick) {
+  const confirmKickMember = async () => {
+    if (!memberToKick) return;
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+      const currentUserId = getCurrentUserId();
+      
+      if (!currentUserId) {
+        alert("You must be logged in to remove members");
+        return;
+      }
+
+      const res = await fetch(
+        `${API_BASE}/clubs/${currentClubId}/kick`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: memberToKick.id,
+            kickedBy: currentUserId,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Failed to remove member:", errorData);
+        alert(errorData.detail || errorData.error || "Failed to remove member from club");
+        return;
+      }
+
+      // Success - remove from UI
       setMembers(members.filter((m) => m.id !== memberToKick.id));
+      console.log("Member removed successfully");
+    } catch (error) {
+      console.error("Error removing member:", error);
+      alert("Network error removing member");
+    } finally {
       setShowKickDialog(false);
       setMemberToKick(null);
     }
@@ -1690,29 +1727,38 @@ export function ForOfficers({
       </div>
 
       {/* Kick Member Confirmation Dialog */}
-      <AlertDialog open={showKickDialog} onOpenChange={setShowKickDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={showKickDialog} onOpenChange={setShowKickDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Member</DialogTitle>
+            <DialogDescription>
               Are you sure you want to remove{" "}
               <span className="font-semibold">{memberToKick?.name}</span> from
               the club? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMemberToKick(null)}>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowKickDialog(false);
+                setMemberToKick(null);
+              }}
+            >
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmKickMember}
-              className="bg-red-600 hover:bg-red-700"
+            </Button>
+            <Button
+              onClick={() => {
+                confirmKickMember();
+              }}
+              style={{ backgroundColor: '#dc2626', color: 'white' }}
+              className="hover:bg-red-700"
             >
               Remove Member
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Switch Clubs Dialog */}
 
