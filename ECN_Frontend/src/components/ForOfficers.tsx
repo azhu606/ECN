@@ -888,10 +888,6 @@ export function ForOfficers({
                   DIALOG STATE = TRUE
                 </div>
               )}
-              <Button>
-                <Settings className="w-4 h-4 mr-2" />
-                Club Settings
-              </Button>
             </div>
           </div>
         </div>
