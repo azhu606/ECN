@@ -884,7 +884,7 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                         )}
 
                         <div className="flex space-x-3 pt-4 border-t">
-                          {club.role === "Officer" && (
+                          {(club.role === "Officer" || club.role === "President") && (
                             <Button
                               onClick={() => navigate(`/officers?clubId=${club.id}`)}
                               className="flex-1"
