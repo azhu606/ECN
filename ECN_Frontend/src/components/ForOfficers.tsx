@@ -1090,13 +1090,6 @@ export function ForOfficers({
                 <AlertDescription>{eventError}</AlertDescription>
               </Alert>
             )}
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Manage Events</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Event
-              </Button>
-            </div>
             <Card>
               <CardHeader>
                 <CardTitle>Quick Create Event</CardTitle>
