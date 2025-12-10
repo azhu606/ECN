@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "./ui/button";
 import { Search, Bell, User, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { clearAuthSession } from "../authSession";
 
 interface HeaderProps {
   isLoggedIn: boolean;
@@ -19,6 +20,7 @@ export function Header({ isLoggedIn, setIsLoggedIn }: HeaderProps) {
   ];
 
   const handleLogout = () => {
+    clearAuthSession();
     setIsLoggedIn(false);
     navigate("/");
   };
