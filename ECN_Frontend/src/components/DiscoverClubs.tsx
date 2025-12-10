@@ -87,6 +87,10 @@ type ClubProfile = {
   verified: boolean;
   lastUpdatedAt: string | null;
   updateRecencyBadge: string | null;
+  officers?: {
+    president: { name: string; email: string } | null;
+    officers: { name: string; email: string; role: string }[];
+  } | null;
 };
 
 const schoolOptions = [
@@ -220,8 +224,8 @@ export function DiscoverClubs() {
             club.fullDescription ??
             club.description,
           contactEmail: profile.contactEmail ?? club.contactEmail,
-          // meetingInfo & officers currently only exist on the front-end mock
-          // so we leave them as-is on club for now
+          // Merge officers data from backend profile
+          officers: profile.officers ?? club.officers,
           verified:
             typeof profile.verified === "boolean"
               ? profile.verified
@@ -582,11 +586,16 @@ export function DiscoverClubs() {
                   )}
 
                   {/* If selected, show ONLY the detailed view (no compact card) */}
-                  {isSelected && (
+                  {isSelected && selectedClub && (
                     <div
-                      id={`club-details-${club.id}`}
+                      id={`club-details-${selectedClub.id}`}
                       className="bg-white border rounded-xl shadow-sm"
                     >
+                      {(() => {
+                        // Use selectedClub for rendering to get merged data (including officers)
+                        const club = selectedClub;
+                        return (
+                          <>
                       {/* Header row */}
                       <div className="flex items-start justify-between p-6 border-b">
                         <div className="space-y-2">
@@ -760,58 +769,66 @@ export function DiscoverClubs() {
                                 <CardTitle>Leadership Structure</CardTitle>
                               </CardHeader>
                               <CardContent className="p-8">
-                                {club.officers ? (
+                                {club.officers && (club.officers.president || (club.officers.officers && club.officers.officers.length > 0)) ? (
                                   <div className="flex flex-col items-center space-y-8">
                                     {/* President */}
-                                    <div className="flex flex-col items-center">
-                                      <div className="w-72 p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-600 rounded-lg shadow-lg">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                          <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white">
-                                            <Users className="w-6 h-6" />
+                                    {club.officers.president && (
+                                      <>
+                                        <div className="flex flex-col items-center">
+                                          <div className="w-72 p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-600 rounded-lg shadow-lg">
+                                            <div className="flex items-center space-x-3 mb-3">
+                                              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white">
+                                                <Users className="w-6 h-6" />
+                                              </div>
+                                              <Badge className="bg-purple-600">
+                                                President
+                                              </Badge>
+                                            </div>
+                                            <h3 className="font-bold text-lg text-gray-900">
+                                              {club.officers.president.name}
+                                            </h3>
+                                            <p className="text-sm text-gray-600 break-all">
+                                              {club.officers.president.email}
+                                            </p>
                                           </div>
-                                          <Badge className="bg-purple-600">
-                                            President
-                                          </Badge>
-                                        </div>
-                                        <h3 className="font-bold text-lg text-gray-900">
-                                          {club.officers.president.name}
-                                        </h3>
-                                        <p className="text-sm text-gray-600 break-all">
-                                          {club.officers.president.email}
-                                        </p>
-                                      </div>
 
-                                      <ArrowDown className="w-6 h-6 text-gray-400 my-4" />
-                                    </div>
+                                          {club.officers.officers && club.officers.officers.length > 0 && (
+                                            <ArrowDown className="w-6 h-6 text-gray-400 my-4" />
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
 
                                     {/* Officers */}
-                                    <div className="grid md:grid-cols-3 gap-6 w-full max-w-5xl">
-                                      {club.officers.officers.map(
-                                        (officer, idx) => (
-                                          <div
-                                            key={idx}
-                                            className="flex flex-col items-center"
-                                          >
-                                            <div className="w-full p-5 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 rounded-lg shadow-md">
-                                              <div className="flex items-center space-x-2 mb-3">
-                                                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
-                                                  <Users className="w-5 h-5" />
+                                    {club.officers.officers && club.officers.officers.length > 0 && (
+                                      <div className="grid md:grid-cols-3 gap-6 w-full max-w-5xl">
+                                        {club.officers.officers.map(
+                                          (officer, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="flex flex-col items-center"
+                                            >
+                                              <div className="w-full p-5 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 rounded-lg shadow-md">
+                                                <div className="flex items-center space-x-2 mb-3">
+                                                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                                                    <Users className="w-5 h-5" />
+                                                  </div>
+                                                  <Badge className="bg-blue-600 text-xs">
+                                                    Officer
+                                                  </Badge>
                                                 </div>
-                                                <Badge className="bg-blue-600 text-xs">
-                                                  {officer.role}
-                                                </Badge>
+                                                <h3 className="font-semibold text-gray-900">
+                                                  {officer.name}
+                                                </h3>
+                                                <p className="text-sm text-gray-600 break-all">
+                                                  {officer.email}
+                                                </p>
                                               </div>
-                                              <h3 className="font-semibold text-gray-900">
-                                                {officer.name}
-                                              </h3>
-                                              <p className="text-sm text-gray-600 break-all">
-                                                {officer.email}
-                                              </p>
                                             </div>
-                                          </div>
-                                        )
-                                      )}
-                                    </div>
+                                          )
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
                                   <div className="text-center py-12 text-gray-500">
@@ -942,6 +959,9 @@ export function DiscoverClubs() {
                           </TabsContent>
                         </Tabs>
                       </div>
+                    </>
+                    );
+                  })()}
                     </div>
                   )}
                 </React.Fragment>
