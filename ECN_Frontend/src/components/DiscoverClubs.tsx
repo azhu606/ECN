@@ -796,10 +796,10 @@ Thank you!
                                         <div className="flex flex-col items-center">
                                           <div className="w-72 p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-600 rounded-lg shadow-lg">
                                             <div className="flex items-center space-x-3 mb-3">
-                                              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white">
+                                              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-gray">
                                                 <Users className="w-6 h-6" />
                                               </div>
-                                              <Badge className="bg-purple-600">
+                                              <Badge className="bg-purple-600 text-yellow-600">
                                                 President
                                               </Badge>
                                             </div>
