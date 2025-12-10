@@ -907,6 +907,13 @@ export function DiscoverClubs() {
                                     className="w-full"
                                     variant="outline"
                                     size="sm"
+                                    onClick={() => {
+                                      if (club.contactEmail) {
+                                        window.location.href = `mailto:${club.contactEmail}?subject=Request for Information - ${club.name}`;
+                                      } else {
+                                        alert('No contact email available for this club');
+                                      }
+                                    }}
                                   >
                                     <Mail className="w-4 h-4 mr-2" />
                                     Request More Information
