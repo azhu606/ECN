@@ -1,4 +1,5 @@
 import { Separator } from "./ui/separator";
+import { Link } from "react-router-dom";
 
 export function Footer() {
   return (
@@ -26,9 +27,9 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">For Students</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Discover Clubs</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Browse Events</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Interest Matching</a></li>
+              <li><Link to="/discover" className="hover:text-white transition-colors">Discover Clubs</Link></li>
+              <li><Link to="/events" className="hover:text-white transition-colors">Browse Events</Link></li>
+              <li><Link to="/myclubs" className="hover:text-white transition-colors">My Clubs</Link></li>
             </ul>
           </div>
 
@@ -36,9 +37,9 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">For Officers</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Manage Profile</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Post Events</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Analytics Dashboard</a></li>
+              <li><Link to="/officers" className="hover:text-white transition-colors">Officer Dashboard</Link></li>
+              <li><Link to="/officers" className="hover:text-white transition-colors">Manage Profile</Link></li>
+              <li><Link to="/officers" className="hover:text-white transition-colors">Analytics</Link></li>
             </ul>
           </div>
 
@@ -46,9 +47,7 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Support</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Contact SILT</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Accessibility</a></li>
+              <li><a href="mailto:silt@emory.edu" className="hover:text-white transition-colors">Contact SILT</a></li>
             </ul>
           </div>
         </div>

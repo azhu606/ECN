@@ -1,11 +1,13 @@
 import React from "react";
-
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Users, Settings, TrendingUp, Shield } from "lucide-react";
 
 export function CallToAction() {
+  const navigate = useNavigate();
+
   return (
     <section className="py-20 bg-[#012169] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -47,7 +49,11 @@ export function CallToAction() {
                 </div>
               </div>
 
-              <Button size="lg" className="w-full bg-white text-[#012169] hover:bg-gray-100">
+              <Button 
+                size="lg" 
+                className="w-full bg-white text-[#012169] hover:bg-gray-100"
+                onClick={() => navigate("/discover")}
+              >
                 Start Exploring Clubs
               </Button>
             </CardContent>
@@ -80,7 +86,12 @@ export function CallToAction() {
                 </div>
               </div>
 
-              <Button size="lg" variant="outline" className="w-full border-white text-white hover:bg-white hover:text-[#012169]">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="w-full border-white bg-white text-[#012169] hover:bg-gray-100"
+                onClick={() => navigate("/officers")}
+              >
                 Claim Your Club
               </Button>
             </CardContent>
