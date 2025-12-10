@@ -303,6 +303,7 @@ def list_clubs(
                 "lastUpdatedISO": c.updated_at.isoformat(),
                 "nextEvent": next_evt,
                 "website": c.request_info_form_url,  # best available url-ish field
+                "contactEmail": c.contact_email, 
                 "tags": [],                        # placeholder; no tags model
                 "activityScore": activity,
                 "discoverabilityIndex": discover,
@@ -394,3 +395,4 @@ def auth_login(email: str, password: str) -> Dict[str, Any]:
     issued = _now_ts()
     token = _sign(f"{user['id']}|{user['email']}|{issued}")
     return {"user": user, "token": token, "maxAge": _MAX_AGE}
+
