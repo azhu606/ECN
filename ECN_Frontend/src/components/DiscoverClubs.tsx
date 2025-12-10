@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -124,11 +125,16 @@ function formatUpdatedAgo(iso: string): string {
 }
 
 export function DiscoverClubs() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get("q") || "";
+  const initialVerified = searchParams.get("verified") === "true";
+  const clubIdFromUrl = searchParams.get("clubId");
+  
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedSchool, setSelectedSchool] = useState("All Schools");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [sortBy, setSortBy] = useState("rating");
-  const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
+  const [showVerifiedOnly, setShowVerifiedOnly] = useState(initialVerified);
 
   const [clubs, setClubs] = useState<Club[]>([]);
   const [total, setTotal] = useState(0);
@@ -175,6 +181,18 @@ export function DiscoverClubs() {
 
     return () => controller.abort();
   }, [searchTerm, selectedSchool, selectedCategory, sortBy, showVerifiedOnly]);
+
+  // ---------------------------------------------------------------------
+  // AUTO-OPEN CLUB DETAILS IF clubId IS IN URL
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    if (clubIdFromUrl && clubs.length > 0 && !selectedClub) {
+      const club = clubs.find((c) => c.id === clubIdFromUrl);
+      if (club) {
+        handleViewDetails(club);
+      }
+    }
+  }, [clubIdFromUrl, clubs, selectedClub]);
 
   // ---------------------------------------------------------------------
   // VIEW DETAILS -> fetch /api/clubs/:id/profile and merge into Club

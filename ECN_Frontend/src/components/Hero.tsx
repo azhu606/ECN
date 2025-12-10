@@ -3,9 +3,25 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Search, Users, Calendar, Shield } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { useState } from "react";
 
 export function Hero() {
   const navigate = useNavigate();
+  const [searchInput, setSearchInput] = useState("");
+
+  const handleSearch = () => {
+    if (searchInput.trim()) {
+      navigate(`/discover?q=${encodeURIComponent(searchInput.trim())}`);
+    } else {
+      navigate("/discover");
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
 
   return (
     <section className="relative bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
@@ -29,10 +45,13 @@ export function Hero() {
               <div className="flex items-center space-x-2">
                 <Search className="w-5 h-5 text-gray-400 ml-2" />
                 <Input 
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Search clubs, events, interests..." 
                   className="border-0 focus-visible:ring-0 bg-transparent"
                 />
-                <Button size="sm" onClick={() => navigate("/discover")}>
+                <Button size="sm" onClick={handleSearch}>
                   Search
                 </Button>
               </div>
