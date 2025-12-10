@@ -248,6 +248,40 @@ export function DiscoverClubs() {
     })();
   };
 
+  // When user clicks "Request Info" from the compact list card, the
+  // list item may not include `contactEmail`. Fetch the club profile
+  // and use the profile's contact email (if available) before opening
+  // a mailto: link — matching the behavior used in the detailed view.
+  const handleRequestInfo = async (club: Club) => {
+    try {
+      // Prefer contactEmail already present on the list item
+      let email = club.contactEmail;
+
+      if (!email) {
+        const res = await fetch(`/api/clubs/${club.id}/profile`);
+        if (res.ok) {
+          const profile: ClubProfile = await res.json();
+          email = profile.contactEmail ?? undefined;
+        }
+      }
+
+      if (email) {
+        const template = `\nHello,\n\nI hope you are doing well. I’m reaching out because I’m interested in learning more about your organization, ${club.name}.\n\nCould you please provide more information about upcoming events, membership requirements, and how to get involved?\n\nThank you!\n`.trim();
+
+        window.location.href = `mailto:${email}?subject=${encodeURIComponent(
+          "Request for Information - " + club.name
+        )}&body=${encodeURIComponent(template)}`;
+      } else {
+        alert("No contact email available for this club");
+      }
+    } catch (e) {
+      console.error("Failed to fetch profile for request info", e);
+      // Fallback: if club.contactEmail existed earlier it would have been used,
+      // otherwise surface the alert to the user.
+      alert("Unable to open email composer right now");
+    }
+  };
+
   const filteredAndSortedClubs = useMemo(() => {
     const arr = [...clubs];
 
@@ -552,24 +586,7 @@ export function DiscoverClubs() {
                               <Button
                                 variant="outline"
                                 className="w-full"
-                                onClick={() => {
-                                  if (club.contactEmail) {
-                                    const template = `
-Hello,
-
-I hope you are doing well. I’m reaching out because I’m interested in learning more about your organization, ${club.name}.
-
-Could you please provide more information about upcoming events, membership requirements, and how to get involved?
-
-Thank you!
-`.trim();
-                                      window.location.href = `mailto:${club.contactEmail}?subject=${encodeURIComponent(
-                                        "Request for Information - " + club.name
-                                      )}&body=${encodeURIComponent(template)}`;
-                                    } else {
-                                      alert("No contact email available for this club");
-                                    }
-                                  }}
+                                onClick={() => handleRequestInfo(club)}
                               >
                                 Request Info
                               </Button>
