@@ -549,9 +549,31 @@ export function DiscoverClubs() {
                                   ? "Loading…"
                                   : "View Details"}
                               </Button>
-                              <Button variant="outline" className="w-full">
+                              <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                  if (club.contactEmail) {
+                                    const template = `
+Hello,
+
+I hope you are doing well. I’m reaching out because I’m interested in learning more about your organization, ${club.name}.
+
+Could you please provide more information about upcoming events, membership requirements, and how to get involved?
+
+Thank you!
+`.trim();
+                                      window.location.href = `mailto:${club.contactEmail}?subject=${encodeURIComponent(
+                                        "Request for Information - " + club.name
+                                      )}&body=${encodeURIComponent(template)}`;
+                                    } else {
+                                      alert("No contact email available for this club");
+                                    }
+                                  }}
+                              >
                                 Request Info
                               </Button>
+
                               {club.website && (
                                 <Button
                                   variant="ghost"
@@ -626,9 +648,6 @@ export function DiscoverClubs() {
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          <Button className="bg-[#012169] hover:bg-[#001a5c]">
-                            Apply to Join
-                          </Button>
                           <button
                             className="p-2 rounded-full hover:bg-gray-100"
                             onClick={() => setSelectedClub(null)}
@@ -918,6 +937,8 @@ export function DiscoverClubs() {
                                     <Mail className="w-4 h-4 mr-2" />
                                     Request More Information
                                   </Button>
+
+                                
                                 </CardContent>
                               </Card>
 
@@ -994,3 +1015,4 @@ export function DiscoverClubs() {
     </div>
   );
 }
+
