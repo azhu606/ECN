@@ -1351,17 +1351,17 @@ export function ForOfficers({
                         key={president.id}
                         className="flex flex-col items-center"
                       >
-                        <div className="w-64 p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-600 rounded-lg shadow-lg">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white">
-                              <Users className="w-6 h-6" />
+                        <div className="w-[700px] min-h-[200px] p-16 bg-gradient-to-br from-purple-50 to-purple-100 border-4 border-purple-600 rounded-xl shadow-2xl">
+                          <div className="flex items-center space-x-4 mb-6">
+                            <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center text-white">
+                              <Users className="w-8 h-8" />
                             </div>
-                            <Badge className="bg-purple-600">President</Badge>
+                            <Badge className="bg-purple-600 text-yellow-400 text-lg px-4 py-2">President</Badge>
                           </div>
-                          <h3 className="font-bold text-lg text-gray-900">
+                          <h3 className="font-bold text-2xl text-gray-900 mb-2">
                             {president.name}
                           </h3>
-                          <p className="text-sm text-gray-600 break-all">
+                          <p className="text-base text-gray-600 break-all">
                             {president.email}
                           </p>
                         </div>
@@ -1379,7 +1379,7 @@ export function ForOfficers({
                           key={officer.id}
                           className="flex flex-col items-center"
                         >
-                          <div className="w-56 p-5 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 rounded-lg shadow-md">
+                          <div className="w-96 p-10 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 rounded-lg shadow-md">
                             <div className="flex items-center space-x-2 mb-3">
                               <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
                                 <Users className="w-5 h-5" />
