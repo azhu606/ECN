@@ -1948,7 +1948,7 @@ export function ForOfficers({
             <Button 
               variant="destructive" 
               onClick={() => confirmPromotion("president")}
-              className="w-full bg-red-600 hover:bg-red-700"
+              className="w-full bg-red-600 hover:bg-red-700 text-red-600"
             >
               Transfer Presidency (Irreversible)
             </Button>
