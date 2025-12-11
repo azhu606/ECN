@@ -83,6 +83,7 @@ interface ClubMetrics {
   memberGrowth: number;
   eventAttendance: number;
   attendanceRate: number;
+  attendanceRateChange: number;
   profileViews: number;
   profileGrowth: number;
   freshnessScore: number;
@@ -147,6 +148,7 @@ const emptyMetrics: ClubMetrics = {
   memberGrowth: 0,
   eventAttendance: 0,
   attendanceRate: 0,
+  attendanceRateChange: 0,
   profileViews: 0,
   profileGrowth: 0,
   freshnessScore: 0,
@@ -1311,9 +1313,15 @@ export function ForOfficers({
                       {metrics.attendanceRate}%
                     </div>
                     <div className="text-sm text-gray-500">Avg. Attendance</div>
-                    <div className="text-xs text-green-600">
-                      +3% vs last month
-                    </div>
+                    {metrics.attendanceRateChange !== 0 && (
+                      <div className={`text-xs ${
+                        metrics.attendanceRateChange > 0 
+                          ? 'text-green-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {metrics.attendanceRateChange > 0 ? '+' : ''}{metrics.attendanceRateChange}% vs last month
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

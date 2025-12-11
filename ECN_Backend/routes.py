@@ -136,11 +136,29 @@ def get_club_metrics(club_id):
 
         event_attendance = int(round(total_attended / len(events))) if events else 0
 
+        # Calculate attendance rate change from last month
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        last_month_start = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_month_start = (now - timedelta(days=60)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Events from last month (30-60 days ago)
+        prev_events = [e for e in events if prev_month_start <= e.start_time < last_month_start]
+        prev_registered = sum(len(e.rsvp_ids or []) for e in prev_events)
+        prev_attended = sum(len(e.attendee_ids or []) for e in prev_events)
+        prev_attendance_rate = round(
+            (prev_attended / prev_registered) * 100, 1
+        ) if prev_registered else 0.0
+        
+        # Calculate the change
+        attendance_rate_change = round(attendance_rate - prev_attendance_rate, 1) if prev_attendance_rate else 0.0
+
         payload = {
             "members": members,
             "memberGrowth": member_growth,
             "eventAttendance": event_attendance,
             "attendanceRate": attendance_rate,
+            "attendanceRateChange": attendance_rate_change,
             "profileViews": profile_views,
             "profileGrowth": profile_growth,
             "freshnessScore": freshness_score,
