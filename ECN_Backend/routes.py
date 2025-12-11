@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, redirect
 from services import list_clubs, create_club, list_events, create_event, search_clubs_smart, auth_register, auth_login, auth_me, auth_cookie_name
 import os
 from db_ops import get_session
-from models import Club, Event, OfficerRole, Student
+from models import Club, Event, OfficerRole, Student, Review
 from sqlalchemy import func
 from datetime import datetime
 
@@ -1036,6 +1036,18 @@ def get_student_my_clubs(student_id):
         # Fetch all clubs
         clubs = session.query(Club).filter(Club.id.in_(club_ids)).all()
         
+        # Fetch user reviews for these clubs
+        user_reviews = (
+            session.query(Review)
+            .filter(
+                Review.student_id == student_id,
+                Review.club_id.in_(club_ids)
+            )
+            .all()
+        )
+        # Create a lookup dict: club_id -> rating
+        review_map = {r.club_id: r.rating for r in user_reviews}
+        
         # Get officer roles for this student
         officer_roles = (
             session.query(OfficerRole)
@@ -1172,21 +1184,71 @@ def get_student_my_clubs(student_id):
                 "id": str(club.id),
                 "name": club.name,
                 "role": role,
-                "joinDate": student.created_at.isoformat() if student.created_at else None,
-                "category": "General",  # You may want to add a category field to Club model
+                "joinDate": club.created_at.isoformat() if club.created_at else None,
+                "category": "General",  # Placeholder
                 "verified": club.verified,
                 "lastActivity": last_activity,
                 "memberCount": member_count,
                 "engagement": engagement,
                 "nextEvent": next_event,
                 "recentActivity": recent_activity,
+                "userRating": review_map.get(club.id, 0),
             })
         
-        # Sort by role priority (President > Officer > Member)
-        role_priority = {"President": 0, "Officer": 1, "Member": 2}
-        results.sort(key=lambda x: role_priority.get(x["role"], 3))
-        
         return jsonify(results)
+
+
+@api_bp.post("/clubs/<uuid:club_id>/review")
+def rate_club(club_id):
+    """
+    Allows a student to rate a club (1-5 stars).
+    Upserts the review (updates if exists, creates if not).
+    """
+    data = request.get_json(force=True) or {}
+    student_id = data.get("userId")
+    rating = data.get("rating")
+
+    if not student_id:
+        return jsonify({"error": "Missing userId"}), 400
+    
+    if rating is None:
+        return jsonify({"error": "Missing rating"}), 400
+
+    try:
+        rating = int(rating)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Rating must be a number"}), 400
+
+    if not (1 <= rating <= 5):
+        return jsonify({"error": "Rating must be between 1 and 5"}), 400
+
+    with get_session() as session:
+        # Check if club exists
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+        
+        # Check if review already exists
+        existing_review = session.query(Review).filter(
+            Review.club_id == club_id,
+            Review.student_id == uuid.UUID(student_id)
+        ).first()
+
+        if existing_review:
+            existing_review.rating = rating
+            existing_review.updated_at = datetime.utcnow()
+        else:
+            new_review = Review(
+                club_id=club_id,
+                student_id=uuid.UUID(student_id),
+                rating=rating,
+                status="approved",
+                review_text=""
+            )
+            session.add(new_review)
+        
+        session.commit()
+        return jsonify({"ok": True, "rating": rating}), 200
 
 
 @api_bp.get("/students/<uuid:student_id>/upcoming-events")

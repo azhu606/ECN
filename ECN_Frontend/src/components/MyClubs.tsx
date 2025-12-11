@@ -58,6 +58,7 @@ interface UserClub {
   engagement: number;
   nextEvent?: ClubNextEvent;
   recentActivity: ClubActivity[];
+  userRating: number;
 }
 
 interface UpcomingEvent {
@@ -197,6 +198,23 @@ async function toggleEventRsvp(
   return response.json();
 }
 
+/**
+ * Submit a rating for a club
+ */
+async function rateClub(clubId: string, userId: string, rating: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/clubs/${clubId}/review`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId, rating }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to submit rating");
+  }
+}
+
 // ============================================================
 // COMPONENT
 // ============================================================
@@ -326,6 +344,25 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
     }
   };
 
+  // Handle rating
+  const handleRate = async (clubId: string, rating: number) => {
+    if (!userId) return;
+    
+    // Optimistic update
+    setUserClubs(prev => prev.map(c => 
+      c.id === clubId ? { ...c, userRating: rating } : c
+    ));
+
+    try {
+      await rateClub(clubId, userId, rating);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save rating");
+      // Revert on failure
+      loadData();
+    }
+  };
+
   // If not logged in, show authentication prompt
   if (!isLoggedIn) {
     return (
@@ -444,6 +481,43 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
       default:
         return <Bell className="w-4 h-4 text-gray-500" />;
     }
+  };
+
+  // Star Rating Component
+  const StarRating = ({ 
+    rating, 
+    onRate, 
+    disabled 
+  }: { 
+    rating: number; 
+    onRate: (r: number) => void; 
+    disabled?: boolean;
+  }) => {
+    const [hoverRating, setHoverRating] = useState(0);
+
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            disabled={disabled}
+            onClick={() => onRate(star)}
+            onMouseEnter={() => setHoverRating(star)}
+            onMouseLeave={() => setHoverRating(0)}
+            className={`focus:outline-none transition-colors ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
+          >
+            <Star 
+              className={`w-5 h-5 ${
+                (hoverRating || rating) >= star 
+                  ? "fill-yellow-400 text-yellow-400" 
+                  : "text-gray-300"
+              }`} 
+            />
+          </button>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -728,6 +802,14 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                               />
                             </div>
 
+                            <div className="flex items-center justify-between text-sm mt-3">
+                              <span className="text-gray-600">My Rating</span>
+                              <StarRating 
+                                rating={club.userRating || 0} 
+                                onRate={(r) => handleRate(club.id, r)}
+                              />
+                            </div>
+
                             {club.nextEvent && (
                               <div className="bg-blue-50 p-3 rounded-md">
                                 <div className="text-sm font-medium text-blue-900">
@@ -841,6 +923,13 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                             <div className="flex justify-between">
                               <span className="text-gray-600">Last Activity:</span>
                               <span className="font-medium">{club.lastActivity}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600">My Rating:</span>
+                              <StarRating 
+                                rating={club.userRating || 0} 
+                                onRate={(r) => handleRate(club.id, r)}
+                              />
                             </div>
                           </div>
                         </div>
