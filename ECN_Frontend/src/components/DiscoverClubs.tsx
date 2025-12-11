@@ -142,7 +142,7 @@ export function DiscoverClubs() {
 
   const [clubs, setClubs] = useState<Club[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   // which club is expanded (its compact card is replaced by details)
@@ -166,6 +166,8 @@ export function DiscoverClubs() {
     setLoading(true);
     setErr(null);
 
+    const startTime = Date.now();
+
     fetch(`/api/clubs?${params.toString()}`, { signal: controller.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(await r.text());
@@ -181,7 +183,12 @@ export function DiscoverClubs() {
           setErr(e.message || "Failed to load clubs");
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // Ensure loading screen shows for at least 500ms
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, 500 - elapsed);
+        setTimeout(() => setLoading(false), delay);
+      });
 
     return () => controller.abort();
   }, [searchTerm, selectedSchool, selectedCategory, sortBy, showVerifiedOnly]);
@@ -447,6 +454,35 @@ export function DiscoverClubs() {
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div className="grid gap-6">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="grid lg:grid-cols-4 gap-6">
+                      <div className="lg:col-span-2 space-y-3">
+                        <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                        <div className="h-20 bg-gray-200 rounded"></div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                        <div className="h-16 bg-gray-200 rounded"></div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                        <div className="h-16 bg-gray-200 rounded"></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Clubs Grid */}
+          {!loading && (
           <div className="grid gap-6">
             {filteredAndSortedClubs.map((club, index) => {
               const isSelected = selectedClub?.id === club.id;
@@ -1013,6 +1049,7 @@ export function DiscoverClubs() {
               );
             })}
           </div>
+          )}
 
           {!loading && filteredAndSortedClubs.length === 0 && (
             <div className="text-center py-12">
