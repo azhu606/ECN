@@ -757,7 +757,7 @@ export function MyClubs({ isLoggedIn }: MyClubsProps) {
                               selectedClub?.id === club.id ? "Hide Details" : "View Details"
                             )}
                           </Button>
-                          {club.role === "Officer" && (
+                          {(club.role === "Officer" || club.role === "President") && (
                             <Button
                               size="sm"
                               onClick={() => navigate(`/officers?clubId=${club.id}`)}
