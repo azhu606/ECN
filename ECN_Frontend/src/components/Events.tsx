@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import {getCurrentUserId} from "../authSession";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -29,6 +30,10 @@ import {
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+interface EventsProps{
+  isLoggedIn: boolean;
+}
 
 interface Event {
   id: string;
@@ -64,9 +69,7 @@ function formatTimeFromIso(iso?: string | null): string {
   });
 }
 
-export function Events() {
-  const { user, anonymousId } = useAuth();
-
+export function Events({ isLoggedIn }: EventsProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<string>("All Categories");
@@ -159,10 +162,10 @@ export function Events() {
   }, []);
 
   // ---- RSVP HANDLER (DISABLED UNTIL LOGGED IN) ----
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
-
   const handleRSVP = async (eventId: string) => {
-    if (!user) {
+    const userId = getCurrentUserId();
+    
+    if (!isLoggedIn || !userId) {
       alert("Please sign in to RSVP.");
       return;
     }
@@ -185,7 +188,7 @@ export function Events() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId }),
       });
     } catch (err) {
       console.error(err);
@@ -500,15 +503,15 @@ export function Events() {
               {/* My Events (RSVP) – disabled until logged in */}
               <Button
                 variant={filterRSVPed ? "default" : "outline"}
-                disabled={!user}
-                onClick={() => user && setFilterRSVPed(!filterRSVPed)}
+                disabled={!isLoggedIn}
+                onClick={() => isLoggedIn && setFilterRSVPed(!filterRSVPed)}
                 className={`whitespace-nowrap ${
                   filterRSVPed
                     ? "bg-[#012169] hover:bg-[#001a5c] text-white"
                     : ""
-                } ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${!isLoggedIn ? "opacity-50 cursor-not-allowed" : ""}`}
                 title={
-                  user
+                  isLoggedIn
                     ? "Show only events you've RSVP'd to"
                     : "Sign in to use My Events filter"
                 }
@@ -524,15 +527,15 @@ export function Events() {
               {/* My Clubs – disabled until logged in */}
               <Button
                 variant={filterMyClubs ? "default" : "outline"}
-                disabled={!user}
-                onClick={() => user && setFilterMyClubs(!filterMyClubs)}
+                disabled={!isLoggedIn}
+                onClick={() => isLoggedIn && setFilterMyClubs(!filterMyClubs)}
                 className={`whitespace-nowrap ${
                   filterMyClubs
                     ? "bg-[#012169] hover:bg-[#001a5c] text-white"
                     : ""
-                } ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${!isLoggedIn ? "opacity-50 cursor-not-allowed" : ""}`}
                 title={
-                  user
+                  isLoggedIn
                     ? "Show only events from clubs you're a member of"
                     : "Sign in to use My Clubs filter"
                 }
@@ -697,23 +700,23 @@ export function Events() {
                         >
                           <Button
                             onClick={() => handleRSVP(event.id)}
-                            disabled={!user}
+                            disabled={!isLoggedIn}
                             className={`w-full ${
-                              !user
+                              !isLoggedIn
                                 ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                                 : rsvped
                                 ? "bg-green-600 hover:bg-green-700"
                                 : "bg-[#012169] hover:bg-[#001a5c]"
                             }`}
                             title={
-                              !user
+                              !isLoggedIn
                                 ? "Sign in to RSVP"
                                 : rsvped
                                 ? "Cancel your RSVP"
                                 : "RSVP to this event"
                             }
                           >
-                            {!user
+                            {!isLoggedIn
                               ? "Sign in to RSVP"
                               : rsvped
                               ? "Cancel RSVP"
@@ -853,23 +856,23 @@ export function Events() {
                             <div className="w-32 space-y-2">
                               <Button
                                 onClick={() => handleRSVP(event.id)}
-                                disabled={!user}
+                                disabled={!isLoggedIn}
                                 className={`w-full ${
-                                  !user
+                                  !isLoggedIn
                                     ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                                     : rsvped
                                     ? "bg-green-600 hover:bg-green-700"
                                     : "bg-[#012169] hover:bg-[#001a5c]"
                                 }`}
                                 title={
-                                  !user
+                                  !isLoggedIn
                                     ? "Sign in to RSVP"
                                     : rsvped
                                     ? "Cancel your RSVP"
                                     : "RSVP to this event"
                                 }
                               >
-                                {!user
+                                {!isLoggedIn
                                   ? "Sign in to RSVP"
                                   : rsvped
                                   ? "Cancel RSVP"
@@ -1061,13 +1064,13 @@ export function Events() {
                       <Button
                         variant={filterMyClubs ? "default" : "outline"}
                         size="sm"
-                        disabled={!user}
-                        onClick={() => user && setFilterMyClubs(!filterMyClubs)}
+                        disabled={!isLoggedIn}
+                        onClick={() => isLoggedIn && setFilterMyClubs(!filterMyClubs)}
                         className={`text-sm ${
                           filterMyClubs
                             ? "bg-[#012169] hover:bg-[#001a5c] text-white"
                             : "hover:bg-gray-50"
-                        } ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+                        } ${!isLoggedIn ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <div className="w-3 h-3 bg-[#012169] rounded mr-2" />
                         My Clubs Events
@@ -1076,13 +1079,13 @@ export function Events() {
                       <Button
                         variant={filterRSVPed ? "default" : "outline"}
                         size="sm"
-                        disabled={!user}
-                        onClick={() => user && setFilterRSVPed(!filterRSVPed)}
+                        disabled={!isLoggedIn}
+                        onClick={() => isLoggedIn && setFilterRSVPed(!filterRSVPed)}
                         className={`text-sm ${
                           filterRSVPed
                             ? "bg-green-600 hover:bg-green-700 text-white"
                             : "hover:bg-gray-50"
-                        } ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+                        } ${!isLoggedIn ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <Heart
                           className={`w-3 h-3 mr-2 ${

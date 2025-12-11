@@ -131,19 +131,24 @@ def create_club(payload: dict) -> str:
 # ---- Events ----
 def list_events(upcoming_only: bool = True) -> List[Dict[str, Any]]:
     with get_session() as s:
-        q = s.query(Event)
+        q = s.query(Event, Club).join(Club, Event.club_id == Club.id)
         if upcoming_only:
-            q = q.filter(Event.start_time >= datetime.utcnow() - timedelta(days=1))
-        events = q.order_by(Event.start_time.asc()).all()
+            q = q.filter(Event.start_time >= datetime.now(timezone.utc))
+
+
+        results = q.order_by(Event.start_time.asc()).all()
         return [{
             "id": str(e.id),
             "clubId": str(e.club_id),
+            "clubName": c.name,           # ← Add this
+            "club_verified": c.verified,  # ← Add this
             "title": e.title,
             "startTime": e.start_time.isoformat(),
             "endTime": e.end_time.isoformat() if e.end_time else None,
             "location": e.location,
             "status": e.status
-        } for e in events]
+        } for e, c in results]  # ← Note: unpacking (e, c) tuple
+
 
 def create_event(payload: dict) -> str:
     req = ["clubId", "title", "startTime", "endTime"]

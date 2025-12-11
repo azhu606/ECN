@@ -38,7 +38,7 @@ export default function App() {
             />
 
             <Route path="/discover" element={<DiscoverClubs />} />
-            <Route path="/events" element={<Events />} />
+            <Route path="/events" element={<Events isLoggedIn={isLoggedIn} />} />
 
             <Route
               path="/myclubs"
