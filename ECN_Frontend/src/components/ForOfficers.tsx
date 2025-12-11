@@ -45,6 +45,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./ui/popover";
 
 import {
   BarChart3,
@@ -193,9 +198,7 @@ export function ForOfficers({
   const [showInviteMemberDialog, setShowInviteMemberDialog] = useState(false);
 
   const [inviteForm, setInviteForm] = useState({
-    memberName: "",
     memberEmail: "",
-    message: "",
   });
 
   // Metrics
@@ -746,14 +749,72 @@ export function ForOfficers({
     setShowRegisterClubDialog(false);
   };
 
-  const handleInviteMember = () => {
-    console.log("Inviting member:", inviteForm);
-    setInviteForm({
-      memberName: "",
-      memberEmail: "",
-      message: "",
-    });
-    setShowInviteMemberDialog(false);
+  const handleInviteMember = async () => {
+    if (!effectiveClubId || !inviteForm.memberEmail) return;
+
+    try {
+      console.log("Looking up user by email:", inviteForm.memberEmail);
+      
+      // First, search for the student by email
+      const searchRes = await fetch(
+        `${effectiveBase}/students/search?email=${encodeURIComponent(inviteForm.memberEmail.trim())}`,
+        { credentials: "include" }
+      );
+
+      if (!searchRes.ok) {
+        alert("No user found with that email address");
+        return;
+      }
+
+      const studentData = await searchRes.json();
+      console.log("Found student:", studentData);
+      
+      // Now use the existing join endpoint
+      const joinRes = await fetch(
+        `${effectiveBase}/clubs/${effectiveClubId}/join`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            userId: studentData.id,
+          }),
+        }
+      );
+
+      const joinData = await joinRes.json();
+      console.log("Join response:", joinRes.status, joinData);
+
+      if (!joinRes.ok) {
+        if (joinData.error === "already_member") {
+          alert("This user is already a member of your club");
+        } else {
+          alert(joinData.detail || joinData.error || "Failed to add member");
+        }
+        return;
+      }
+
+      alert(`${studentData.name} has been added to your club!`);
+      
+      // Reset form and close dialog
+      setInviteForm({ memberEmail: "" });
+      setShowInviteMemberDialog(false);
+
+      // Reload members list
+      const membersRes = await fetch(
+        `${effectiveBase}/clubs/${effectiveClubId}/members`,
+        { credentials: "include" }
+      );
+      if (membersRes.ok) {
+        const membersData: Member[] = await membersRes.json();
+        setMembers(membersData);
+      }
+    } catch (err) {
+      console.error("Failed to invite member", err);
+      alert("Failed to add member. Please try again.");
+    }
   };
 
   // --------------------------------------------------
@@ -1267,6 +1328,14 @@ export function ForOfficers({
                 Invite Members
               </Button>
             </div>
+            
+            {showInviteMemberDialog && (
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertDescription className="text-blue-800">
+                  ↓ Scroll down to add a member
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="grid lg:grid-cols-3 gap-6">
               <Card>
@@ -2071,94 +2140,7 @@ export function ForOfficers({
         </DialogContent>
       </Dialog>
 
-      {/* Invite Member Dialog */}
-      <Dialog
-        open={showInviteMemberDialog}
-        onOpenChange={setShowInviteMemberDialog}
-      >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invite New Member</DialogTitle>
-            <DialogDescription>
-              Send an invitation to a new member to join your club.
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900">
-                Member Information
-              </h3>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="member-name">Member Name *</Label>
-                  <Input
-                    id="member-name"
-                    placeholder="Full name"
-                    value={inviteForm.memberName}
-                    onChange={(e) =>
-                      setInviteForm({
-                        ...inviteForm,
-                        memberName: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="member-email">Member Email *</Label>
-                  <Input
-                    id="member-email"
-                    type="email"
-                    placeholder="member@emory.edu"
-                    value={inviteForm.memberEmail}
-                    onChange={(e) =>
-                      setInviteForm({
-                        ...inviteForm,
-                        memberEmail: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="message">Message (Optional)</Label>
-                <Textarea
-                  id="message"
-                  placeholder="Add a personal message to your invitation..."
-                  rows={4}
-                  value={inviteForm.message}
-                  onChange={(e) =>
-                    setInviteForm({
-                      ...inviteForm,
-                      message: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowInviteMemberDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleInviteMember}
-              disabled={!inviteForm.memberName || !inviteForm.memberEmail}
-              className="bg-[#012169] hover:bg-[#001a5c]"
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Send Invitation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Edit Event Dialog */}
       <Dialog
@@ -2305,6 +2287,63 @@ export function ForOfficers({
             >
               <Mail className="w-4 h-4 mr-2" />
               Send Announcement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Member Dialog */}
+      <Dialog
+        open={showInviteMemberDialog}
+        onOpenChange={setShowInviteMemberDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Member</DialogTitle>
+            <DialogDescription>
+              Enter the email address of the user you want to add to your club.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="member-email">Member Email *</Label>
+              <Input
+                id="member-email"
+                type="email"
+                placeholder="member@emory.edu"
+                value={inviteForm.memberEmail}
+                onChange={(e) =>
+                  setInviteForm({
+                    memberEmail: e.target.value,
+                  })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && inviteForm.memberEmail) {
+                    handleInviteMember();
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500">
+                The user must already have an account with this email address.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowInviteMemberDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInviteMember}
+              disabled={!inviteForm.memberEmail}
+              className="bg-[#012169] hover:bg-[#001a5c]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Member
             </Button>
           </DialogFooter>
         </DialogContent>

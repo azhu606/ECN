@@ -322,6 +322,84 @@ def kick_member(club_id):
         return jsonify({"kicked": True, "memberCount": len(club.member_ids or [])}), 200
 
 
+@api_bp.post("/clubs/<uuid:club_id>/members")
+def add_club_member(club_id):
+    """
+    Add a member to a club by email (president/officer only).
+    
+    Request body: { "email": "student@emory.edu" }
+    
+    Returns:
+    - 200: Member added successfully
+    - 400: Invalid request or member already in club
+    - 404: Student with email not found or club not found
+    - 401: Not authenticated
+    - 403: Not authorized (not an officer)
+    """
+    # Get current user from session cookie
+    token = request.cookies.get(auth_cookie_name(), "")
+    print(f"[ADD MEMBER] Cookie name: {auth_cookie_name()}, Token: {token[:20] if token else 'NONE'}")
+    print(f"[ADD MEMBER] All cookies: {list(request.cookies.keys())}")
+    if not token:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    try:
+        current_user_data = auth_me(token)
+        current_user_id = uuid.UUID(current_user_data["user"]["id"])
+    except Exception as e:
+        return jsonify({"error": f"Invalid session: {str(e)}"}), 401
+    
+    with get_session() as session:
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+        
+        # Check if current user is president or officer
+        is_president = current_user_id in (club.president_ids or [])
+        is_officer = current_user_id in (club.officers or [])
+        
+        if not (is_president or is_officer):
+            return jsonify({"error": "Not authorized. Only presidents and officers can add members."}), 403
+        
+        # Get email from request body
+        body = request.get_json() or {}
+        email = (body.get("email") or "").strip().lower()
+        
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+        
+        # Find student by email
+        student = session.query(Student).filter(func.lower(Student.email) == email).first()
+        
+        if not student:
+            return jsonify({"error": "No user found with that email address"}), 404
+        
+        # Check if already a member
+        if student.id in (club.member_ids or []):
+            return jsonify({"error": "User is already a member of this club"}), 400
+        
+        # Add student to club
+        club.member_ids = list(club.member_ids or []) + [student.id]
+        
+        # Add club to student's my_clubs
+        student.my_clubs = list(student.my_clubs or [])
+        if club.id not in student.my_clubs:
+            student.my_clubs.append(club.id)
+        
+        session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"{student.name} has been added to {club.name}",
+            "member": {
+                "id": str(student.id),
+                "name": student.name,
+                "email": student.email
+            },
+            "memberCount": len(club.member_ids or [])
+        }), 200
+
+
 @api_bp.delete("/clubs/<uuid:club_id>/members/<uuid:member_id>")
 def remove_club_member(club_id, member_id):
     """
@@ -1243,6 +1321,36 @@ def get_student_stats(student_id):
             "leadershipRoles": leadership_roles,
             "avgEngagement": avg_engagement,
         })
+
+
+@api_bp.get("/students/search")
+def search_student_by_email():
+    """
+    Search for a student by email address.
+    
+    Query params:
+      ?email=<student_email>
+    
+    Response:
+      200 { "id": "<uuid>", "name": "<name>", "email": "<email>" }
+      404 { "error": "student_not_found" }
+    """
+    email = request.args.get("email", "").strip().lower()
+    
+    if not email:
+        return jsonify({"error": "email_required", "detail": "Email query parameter is required"}), 400
+    
+    with get_session() as session:
+        student = session.query(Student).filter(func.lower(Student.email) == email).first()
+        
+        if not student:
+            return jsonify({"error": "student_not_found", "detail": "No user found with that email address"}), 404
+        
+        return jsonify({
+            "id": str(student.id),
+            "name": student.name,
+            "email": student.email,
+        }), 200
 
 
 @api_bp.post("/clubs/<uuid:club_id>/join")
