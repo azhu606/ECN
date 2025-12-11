@@ -304,6 +304,83 @@ def kick_member(club_id):
         return jsonify({"kicked": True, "memberCount": len(club.member_ids or [])}), 200
 
 
+@api_bp.delete("/clubs/<uuid:club_id>/members/<uuid:member_id>")
+def remove_club_member(club_id, member_id):
+    """
+    Remove a member from a club (president only) - Cookie-based authentication version.
+    
+    - Validates the current user is the president via ecn_session cookie
+    - Removes the member from all club arrays and OfficerRole table
+    - Removes club from student's my_clubs and officer_clubs arrays
+    - Prevents presidents from removing themselves or other presidents
+    """
+    # Get current user from session cookie
+    token = request.cookies.get(auth_cookie_name(), "")
+    print(f"[DELETE MEMBER] Token: {token[:20] if token else 'NONE'}, All cookies: {list(request.cookies.keys())}")
+    if not token:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    try:
+        current_user_data = auth_me(token)
+        current_user_id = uuid.UUID(current_user_data["user"]["id"])
+    except Exception as e:
+        return jsonify({"error": f"Invalid session: {str(e)}"}), 401
+    
+    with get_session() as session:
+        # Check if club exists
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+        
+        # Check if current user is president
+        president_role = session.query(OfficerRole).filter(
+            OfficerRole.club_id == club_id,
+            OfficerRole.student_id == current_user_id,
+            OfficerRole.role == "president"
+        ).first()
+        
+        if not president_role:
+            return jsonify({"error": "Only presidents can remove members"}), 403
+        
+        # Prevent self-removal
+        if member_id == current_user_id:
+            return jsonify({"error": "Cannot remove yourself"}), 400
+        
+        # Check if member is a president (cannot kick other presidents)
+        member_president = session.query(OfficerRole).filter(
+            OfficerRole.club_id == club_id,
+            OfficerRole.student_id == member_id,
+            OfficerRole.role == "president"
+        ).first()
+        
+        if member_president:
+            return jsonify({"error": "Cannot remove another president"}), 403
+        
+        # Check if member exists
+        member = session.get(Student, member_id)
+        if not member:
+            return jsonify({"error": "Member not found"}), 404
+        
+        # Remove from club arrays
+        club.member_ids = [m for m in (club.member_ids or []) if m != member_id]
+        club.officers = [o for o in (club.officers or []) if o != member_id]
+        
+        # Remove OfficerRole entries for this student in this club
+        session.query(OfficerRole).filter(
+            OfficerRole.club_id == club_id,
+            OfficerRole.student_id == member_id
+        ).delete()
+        
+        # Remove club from student's arrays
+        member.my_clubs = [c for c in (member.my_clubs or []) if c != club_id]
+        member.officer_clubs = [c for c in (member.officer_clubs or []) if c != club_id]
+        member.favorite_clubs = [c for c in (member.favorite_clubs or []) if c != club_id]
+        
+        session.commit()
+        
+        return jsonify({"success": True, "message": f"Member {member.name} removed from club"}), 200
+
+
 @api_bp.get("/clubs/<uuid:club_id>/events")
 def get_club_events(club_id):
     """
