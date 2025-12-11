@@ -354,7 +354,7 @@ export function DiscoverClubs() {
                 </h1>
                 <p className="text-gray-600 mt-2">
                   {loading
-                    ? "Loading…"
+                    ? "Loading... connecting to backend (may take ~1 minute)"
                     : `Find your community from ${total} active organizations`}
                 </p>
               </div>
