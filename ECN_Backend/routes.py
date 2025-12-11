@@ -1160,8 +1160,15 @@ def get_student_my_clubs(student_id):
             # Determine role
             role = role_lookup.get(club.id, "Member")
             
-            # Get member count
-            member_count = len(club.member_ids or [])
+            # Get member count (same logic as services.py list_clubs)
+            member_set = set(club.member_ids or [])
+            member_set.update(club.officers or [])
+            # Add members from OfficerRole table
+            club_officer_roles = session.query(OfficerRole).filter(OfficerRole.club_id == club.id).all()
+            for role_obj in club_officer_roles:
+                member_set.add(role_obj.student_id)
+            member_count = len(member_set)
+
             
             # Get upcoming events for this club
             upcoming_events = (

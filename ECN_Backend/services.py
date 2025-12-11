@@ -294,7 +294,15 @@ def list_clubs(
         }
 
         for c in clubs:
-            members_count = len(c.member_ids or [])  # ARRAY(UUID) in your model
+            member_set = set(c.member_ids or [])
+            member_set.update(c.officers or [])
+            # Add members from OfficerRole table
+            from models import OfficerRole
+            officer_role_rows = s.query(OfficerRole).filter(OfficerRole.club_id == c.id).all()
+            for role in officer_role_rows:
+                member_set.add(role.student_id)
+            members_count = len(member_set)
+
             verified = bool(c.verified)
             rating = _avg_rating_for_club(s, c.id)
             next_evt = _next_event_for_club(s, c.id)
