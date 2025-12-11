@@ -401,8 +401,12 @@ def get_club_events(club_id):
         events = q.order_by(Event.start_time.asc()).all()
 
         def fmt_time(dt):
-            # "7:00 PM" style
-            return dt.strftime("%-I:%M %p") if dt else None
+            if not dt:
+                return None
+            from zoneinfo import ZoneInfo
+            from datetime import timezone
+            est_time = dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("America/New_York"))
+            return est_time.strftime("%-I:%M %p")
 
         payload = [
             {
@@ -415,10 +419,11 @@ def get_club_events(club_id):
                 "location": e.location,
                 "capacity": e.rsvp_limit,
                 "registered": len(e.rsvp_ids or []),
-                "status": e.status,  # "draft" | "published" | "live"
+                "status": e.status,
             }
             for e in events
         ]
+
 
         return jsonify(payload)
 
@@ -1007,11 +1012,13 @@ def get_student_my_clubs(student_id):
             next_event = None
             if upcoming_events:
                 e = upcoming_events[0]
+                from zoneinfo import ZoneInfo
+                est_time = e.start_time.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("America/New_York"))
                 next_event = {
                     "id": str(e.id),
                     "name": e.title,
-                    "date": e.start_time.strftime("%b %d") if e.start_time else None,
-                    "time": e.start_time.strftime("%-I:%M %p") if e.start_time else None,
+                    "date": est_time.strftime("%b %d") if e.start_time else None,
+                    "time": est_time.strftime("%-I:%M %p") if e.start_time else None,
                 }
             
             # Build recent activity from events
@@ -1135,15 +1142,17 @@ def get_student_upcoming_events(student_id):
         student_rsvped = set(student.rsvped_events or [])
         
         results = []
+        from zoneinfo import ZoneInfo
         for event, club in events:
+            est_time = event.start_time.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("America/New_York"))
             results.append({
                 "id": str(event.id),
                 "name": event.title,
                 "description": event.description,
                 "clubId": str(club.id),
                 "clubName": club.name,
-                "date": event.start_time.strftime("%b %d") if event.start_time else None,
-                "time": event.start_time.strftime("%-I:%M %p") if event.start_time else None,
+                "date": est_time.strftime("%b %d") if event.start_time else None,
+                "time": est_time.strftime("%-I:%M %p") if event.start_time else None,
                 "startTime": event.start_time.isoformat() if event.start_time else None,
                 "location": event.location,
                 "capacity": event.rsvp_limit,

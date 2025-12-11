@@ -211,7 +211,7 @@ def _avg_rating_for_club(session, club_id) -> float:
     return round(val, 1)
 
 def _next_event_for_club(session, club_id) -> Optional[dict]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     evt = (
         session.query(Event)
         .filter(Event.club_id == club_id, Event.start_time >= now)
@@ -220,9 +220,14 @@ def _next_event_for_club(session, club_id) -> Optional[dict]:
     )
     if not evt:
         return None
-    # simple pretty date/time
-    date_str = evt.start_time.strftime("%b %d")
-    time_str = evt.start_time.strftime("%-I:%M %p")
+    
+    # Convert UTC to EST/EDT for display
+    from zoneinfo import ZoneInfo
+    est_time = evt.start_time.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("America/New_York"))
+    
+    date_str = est_time.strftime("%b %d")
+    time_str = est_time.strftime("%-I:%M %p")
+    
     return {
         "name": evt.title,
         "date": date_str,
@@ -278,7 +283,7 @@ def list_clubs(
 
         # Build enriched items expected by the UI
         items: List[Dict[str, Any]] = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Preload upcoming events per club (counts) to compute activity
         upcoming_counts = {

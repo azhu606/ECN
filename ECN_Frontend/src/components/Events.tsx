@@ -273,7 +273,9 @@ export function Events({ isLoggedIn }: EventsProps) {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
-    const date = new Date(dateString);
+    // Parse as local date to avoid timezone shift
+    const [year, month, day] = dateString.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
     if (Number.isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString("en-US", {
       weekday: "short",
