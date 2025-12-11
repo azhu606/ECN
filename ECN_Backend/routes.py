@@ -477,6 +477,90 @@ def remove_club_member(club_id, member_id):
         return jsonify({"success": True, "message": f"Member {member.name} removed from club"}), 200
 
 
+@api_bp.post("/clubs/<uuid:club_id>/promote")
+def promote_member(club_id):
+    """
+    Promote a member to Officer or Transfer Presidency.
+    Body: { "userId": "...", "newRole": "officer" | "president", "promotedBy": "..." }
+    """
+    data = request.get_json(force=True) or {}
+    target_user_id = data.get("userId")
+    promoter_id = data.get("promotedBy")
+    new_role = data.get("newRole")
+
+    if not target_user_id or not promoter_id or not new_role:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    with get_session() as session:
+        # Verify Promoter is President
+        promoter_role = session.query(OfficerRole).filter(
+            OfficerRole.club_id == club_id,
+            OfficerRole.student_id == uuid.UUID(promoter_id),
+            OfficerRole.role == "president"
+        ).first()
+
+        if not promoter_role:
+            return jsonify({"error": "Unauthorized. Only the President can promote members."}), 403
+
+        target_uuid = uuid.UUID(target_user_id)
+        club = session.get(Club, club_id)
+        if not club:
+            return jsonify({"error": "Club not found"}), 404
+
+        if new_role == "officer":
+            # Check if already officer
+            existing = session.query(OfficerRole).filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.student_id == target_uuid
+            ).first()
+            
+            if existing:
+                existing.role = "officer"
+            else:
+                new_officer = OfficerRole(
+                    club_id=club_id, 
+                    student_id=target_uuid, 
+                    role="officer",
+                    assigned_at=datetime.utcnow()
+                )
+                session.add(new_officer)
+            
+            # Update Club/Student Arrays
+            if target_uuid not in (club.officers or []):
+                club.officers = list(club.officers or []) + [target_uuid]
+
+        elif new_role == "president":
+            # Delete all existing roles for both users to avoid constraint violation
+            session.query(OfficerRole).filter(
+                OfficerRole.club_id == club_id,
+                OfficerRole.student_id.in_([target_uuid, uuid.UUID(promoter_id)])
+            ).delete()
+            
+            # Create officer role for demoted president
+            demoted_officer = OfficerRole(
+                club_id=club_id,
+                student_id=uuid.UUID(promoter_id),
+                role="officer",
+                assigned_at=datetime.utcnow()
+            )
+            session.add(demoted_officer)
+            
+            # Create new president role for target
+            new_pres = OfficerRole(
+                club_id=club_id, 
+                student_id=target_uuid, 
+                role="president",
+                assigned_at=datetime.utcnow()
+            )
+            session.add(new_pres)
+
+            # Update Arrays
+            club.president_ids = [target_uuid]
+            
+        session.commit()
+        return jsonify({"success": True})
+
+
 @api_bp.get("/clubs/<uuid:club_id>/events")
 def get_club_events(club_id):
     """

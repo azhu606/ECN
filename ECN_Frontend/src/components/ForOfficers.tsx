@@ -196,6 +196,8 @@ export function ForOfficers({
   const [memberToKick, setMemberToKick] = useState<Member | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
   const [showInviteMemberDialog, setShowInviteMemberDialog] = useState(false);
+  const [memberToPromote, setMemberToPromote] = useState<Member | null>(null);
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false);
 
   const [inviteForm, setInviteForm] = useState({
     memberEmail: "",
@@ -424,14 +426,15 @@ export function ForOfficers({
   // 1) Fetch officer clubs for this user
   // --------------------------------------------------
   useEffect(() => {
-    if (!isLoggedIn || !userId) return;
+    const currentUserId = getCurrentUserId();
+    if (!isLoggedIn || !currentUserId) return;
 
     const fetchOfficerClubs = async () => {
       try {
         setLoadingClubs(true);
         setClubsError(null);
 
-        const url = `${effectiveBase}/students/${userId}/officer-clubs`;
+        const url = `${effectiveBase}/students/${currentUserId}/officer-clubs`;
         console.log("Fetching officer clubs from:", url);
 
         const res = await fetch(url, { credentials: "include" });
@@ -706,6 +709,56 @@ export function ForOfficers({
     } finally {
       setShowKickDialog(false);
       setMemberToKick(null);
+    }
+  };
+
+  const confirmPromotion = async (newRole: string) => {
+    if (!memberToPromote || !effectiveClubId) return;
+
+    try {
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        alert("You must be logged in to promote members");
+        return;
+      }
+
+      const res = await fetch(
+        `${effectiveBase}/clubs/${effectiveClubId}/promote`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            userId: memberToPromote.id,
+            newRole,
+            promotedBy: currentUserId,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Failed to promote member");
+        return;
+      }
+
+      // Reload members list
+      const membersRes = await fetch(
+        `${effectiveBase}/clubs/${effectiveClubId}/members`,
+        { credentials: "include" }
+      );
+      if (membersRes.ok) {
+        const membersData: Member[] = await membersRes.json();
+        setMembers(membersData);
+      }
+
+      alert(`${memberToPromote.name} has been promoted to ${newRole}!`);
+    } catch (error) {
+      console.error("Error promoting member:", error);
+      alert("Network error promoting member");
+    } finally {
+      setShowPromoteDialog(false);
+      setMemberToPromote(null);
     }
   };
 
@@ -1446,24 +1499,39 @@ export function ForOfficers({
                         </TableCell>
                         <TableCell>{member.eventsAttended}</TableCell>
                         <TableCell className="text-right">
-                          {member.position !== "president" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleKickMember(member)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <UserX className="w-4 h-4 mr-1" />
-                              Kick
-                            </Button>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-xs text-gray-400"
-                            >
-                              Protected
-                            </Badge>
-                          )}
+                          <div className="flex justify-end gap-2">
+                            {members.find(m => m.id === getCurrentUserId() && m.position === "president") && member.position !== "president" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setMemberToPromote(member);
+                                  setShowPromoteDialog(true);
+                                }}
+                              >
+                                <TrendingUp className="w-4 h-4 mr-1" />
+                                Promote
+                              </Button>
+                            )}
+                            {member.position !== "president" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleKickMember(member)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <UserX className="w-4 h-4 mr-1" />
+                                Kick
+                              </Button>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-gray-400"
+                              >
+                                Protected
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1857,6 +1925,43 @@ export function ForOfficers({
               className="hover:bg-red-700"
             >
               Remove Member
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Promote Member Dialog */}
+      <Dialog open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Promote {memberToPromote?.name}</DialogTitle>
+            <DialogDescription>
+              Change the role for this member.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            {memberToPromote?.position === "member" && (
+              <Button onClick={() => confirmPromotion("officer")} className="w-full">
+                Promote to Officer
+              </Button>
+            )}
+            <Button 
+              variant="destructive" 
+              onClick={() => confirmPromotion("president")}
+              className="w-full bg-red-600 hover:bg-red-700"
+            >
+              Transfer Presidency (Irreversible)
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPromoteDialog(false);
+                setMemberToPromote(null);
+              }}
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
