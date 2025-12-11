@@ -550,6 +550,34 @@ export function ForOfficers({
   }, [isLoggedIn, effectiveBase, effectiveClubId]);
 
   // --------------------------------------------------
+  // 4) Populate activity from upcoming events
+  // --------------------------------------------------
+  useEffect(() => {
+    if (events.length === 0) {
+      setActivity([]);
+      return;
+    }
+
+    // Convert upcoming events to activity items
+    const eventActivities: RecentActivity[] = events
+      .slice(0, 3) // Show only first 3 events
+      .map((event) => {
+        const eventDate = event.startTime || event.date;
+        const timeStr = eventDate ? new Date(eventDate).toLocaleDateString() : "TBA";
+        
+        return {
+          id: `event-${event.id}`,
+          type: "rsvp",
+          user: event.name,
+          action: `scheduled for ${timeStr}`,
+          time: event.startTime ? new Date(event.startTime).toLocaleString() : timeStr,
+        };
+      });
+
+    setActivity(eventActivities);
+  }, [events]);
+
+  // --------------------------------------------------
   // Save profile
   // --------------------------------------------------
   const handleSaveProfile = async () => {
@@ -1037,7 +1065,7 @@ export function ForOfficers({
                 <CardContent className="space-y-4">
                   {activity.length === 0 && (
                     <p className="text-sm text-gray-500">
-                      No recent activity yet.
+                      No upcoming events scheduled. Create an event to see activity here.
                     </p>
                   )}
                   {activity.map((activityItem) => (
@@ -1059,7 +1087,11 @@ export function ForOfficers({
                       </div>
                     </div>
                   ))}
-                  <Button variant="outline" className="w-full mt-4">
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-4"
+                    onClick={() => setSelectedTab("events")}
+                  >
                     View All Activity
                   </Button>
                 </CardContent>
