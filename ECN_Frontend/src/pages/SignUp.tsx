@@ -39,7 +39,7 @@ export default function SignUp() {
     try {
       setIsSubmitting(true);
 
-      const res = await fetch("/auth/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -79,7 +79,7 @@ import {
   Building2,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const API_BASE =  "/api";
 
 const userId = getCurrentUserId();
 
@@ -173,7 +173,7 @@ export function ForOfficers({
 }: ForOfficersProps) {
   const navigate = useNavigate();
 
-  const effectiveBase = apiBaseUrl ?? API_BASE;
+  const effectiveBase = API_BASE;
 
   const [selectedTab, setSelectedTab] = useState("dashboard");
 

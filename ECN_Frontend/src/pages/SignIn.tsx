@@ -7,7 +7,7 @@ interface SignInProps {
   setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const API_BASE = "/api";
 
 export default function SignIn({ setIsLoggedIn }: SignInProps) {
   const navigate = useNavigate();

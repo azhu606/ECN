@@ -51,7 +51,7 @@ export function Hero() {
                   placeholder="Search clubs, events, interests..." 
                   className="border-0 focus-visible:ring-0 bg-transparent"
                 />
-                <Button size="sm" onClick={handleSearch}>
+                <Button size="sm" onClick={() => navigate("/discover")}>
                   Search
                 </Button>
               </div>
