@@ -59,7 +59,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         // IMPORTANT: include protocol so Vite proxies correctly
-        target: "http://127.0.0.1:8080",
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
         secure: false,
         // we keep the path as-is: /api/... -> Flask /api/...
